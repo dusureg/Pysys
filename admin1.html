@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<!--
+  DUSUR — ADMIN site (private). One file, no backend, ready for GitHub Pages.
+
+  KEEP THE ADDRESS OF THIS FILE PRIVATE.
+  - It is a different file from the client site: clients only ever use index.html and the links you copy from the dashboard.
+  - Nothing links to this page and search engines are told to skip it. Keep the long random file name it was delivered with.
+  - Anyone who finds the address still faces the admin password; the token and the data keys live only in your own browsers.
+
+  SETUP
+  1. Put index.html (client site) and this file in the root of a PUBLIC GitHub repository and enable GitHub Pages.
+     (Public is required: clients read their encrypted files from raw.githubusercontent.com.)
+  2. Create a fine-grained Personal Access Token limited to that one repository, with "Contents: Read and write".
+  3. Open this page, fill in Configuration (first-time setup), then use Settings to add your company details.
+  4. On another device: open this page, choose "Import connection code" on the setup screen
+     (create the code on the first device under Configuration > Use on another device).
+
+  WHAT LIVES IN THE REPOSITORY
+    data/clients/<id>.json        client-facing snapshot, AES-256 under the client's secret key
+    data/clients/<id>/<photo>.t|f encrypted photo thumbnail / full image (AES-256-GCM, client key)
+    data/private/<id>.json        full record incl. costs, BOM and profit, AES-256-GCM under the admin master key
+    data/private/settings.json    settings, counters (admin master key)
+    data/private/vault.json       the master key, wrapped by your admin password
+    data/public/brand.json        company name, contacts and logo shown on the client site (public on purpose)
+    data/public/index.json        one-way hashes of project SKUs for the client site's live search
+
+  Nothing secret or repository-specific is hard-coded in this file.
+-->
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'unsafe-inline'; connect-src https://api.github.com https://raw.githubusercontent.com; img-src data: blob: https:; base-uri 'none'; form-action 'none'">
+<script>
+(function(){var d=document.documentElement;try{
+var l=localStorage.getItem('dsp.lang');if(l!=='ar'&&l!=='en')l=((navigator.language||'en').slice(0,2)==='ar')?'ar':'en';
+var th=localStorage.getItem('dsp.theme');if(th!=='light'&&th!=='dark')th='dark';
+d.lang=l;d.dir=l==='ar'?'rtl':'ltr';d.setAttribute('data-theme',th);}catch(e){}
+if(location.hash.indexOf('#client/')===0)d.classList.add('client-mode');})();
+
+/* Start-up safety net (plain ES5 so it works everywhere):
+   - records script errors, and if the app never starts shows WHY instead of an empty page
+   - loads CryptoJS without blocking the page, trying cdnjs, then jsDelivr, then unpkg */
+(function(){
+var D=window.__dsp={errs:[],booted:false,crypto:null};
+function rec(m){if(D.errs.length<8)D.errs.push(String(m).slice(0,300));}
+window.addEventListener('error',function(e){
+  var t=e&&e.target;
+  if(t&&t!==window&&(t.src||t.href)){rec('could not load '+(t.src||t.href));return;}
+  rec((e&&e.message||'script error')+(e&&e.filename?' ('+e.lineno+':'+e.colno+')':''));
+},true);
+window.addEventListener('unhandledrejection',function(e){rec('promise: '+(e.reason&&e.reason.message||e.reason));});
+
+var SRC=['https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js','https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js','https://unpkg.com/crypto-js@4.2.0/crypto-js.js'];
+D.crypto=new Promise(function(res){
+  var i=0;
+  (function next(){
+    if(window.CryptoJS)return res(true);
+    if(i>=SRC.length)return res(false);
+    var s=document.createElement('script'),done=false,tm=0,url=SRC[i];
+    function fin(){if(done)return;done=true;clearTimeout(tm);if(window.CryptoJS)res(true);else{i++;next();}}
+    s.onload=fin;s.onerror=fin;tm=setTimeout(fin,9000);
+    s.async=true;s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';s.src=url;
+    document.head.appendChild(s);
+  })();
+});
+
+function diag(){
+  if(D.booted)return;
+  var m=document.getElementById('app');if(!m||m.getAttribute('data-diag'))return;
+  m.setAttribute('data-diag','1');m.textContent='';
+  function el(tag,txt,st){var x=document.createElement(tag);if(txt)x.textContent=txt;if(st)x.style.cssText=st;m.firstChild?m.firstChild.appendChild(x):m.appendChild(x);return x;}
+  var c=document.createElement('section');c.className='card state';m.appendChild(c);
+  el('h1','The portal could not start — تعذّر تشغيل البوابة');
+  el('p','The page loaded but its script did not run. Open this page directly in Chrome from its https:// GitHub Pages address (not inside a file viewer, preview or in-app browser) and reload. If it still fails, send a screenshot of this box.','color:var(--muted)');
+  var info=[D.errs.length?D.errs.join('\n'):'(no script error was reported — scripts are probably blocked by the viewer)',
+    'page: '+location.protocol+'//'+location.host,'secure context: '+(window.isSecureContext?'yes':'no'),'crypto.subtle: '+(window.crypto&&crypto.subtle?'yes':'no'),'CryptoJS: '+(window.CryptoJS?'yes':'no'),'browser: '+(navigator.userAgent||'').slice(0,140)].join('\n');
+  el('pre',info,'white-space:pre-wrap;word-break:break-word;text-align:left;direction:ltr;font-size:12px;max-width:100%;overflow:auto;margin:0;padding:10px;border:1px solid var(--line);border-radius:8px');
+}
+document.addEventListener('DOMContentLoaded',function(){setTimeout(diag,2500);});
+})();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark light">
+<title>DUSUR — Admin</title>
+<link rel="icon" href="data:,">
+<style>
+:root,[data-theme=dark]{
+  --bg:#0f172a;--bg-2:#0b1224;--card:#1e293b;--card-2:#17233a;--line:#334155;--line-2:#475569;
+  --text:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8;--accent-2:#2563eb;
+  --ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--input:#0f172a;--glow:#1b2a4e;
+  --shadow:0 10px 30px rgba(2,6,23,.35);--radius:14px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+[data-theme=light]{
+  --bg:#f1f5f9;--bg-2:#e2e8f0;--card:#ffffff;--card-2:#f8fafc;--line:#cbd5e1;--line-2:#94a3b8;
+  --text:#0f172a;--muted:#475569;--accent:#0369a1;--accent-2:#2563eb;
+  --ok:#15803d;--warn:#b45309;--bad:#b91c1c;--input:#ffffff;--glow:#dbeafe;
+  --shadow:0 6px 20px rgba(15,23,42,.08);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{color-scheme:dark}
+html[data-theme=light]{color-scheme:light}
+body{margin:0;min-height:100vh;color:var(--text);
+  font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Arabic","Noto Naskh Arabic",Tahoma,sans-serif;
+  background:radial-gradient(1100px 520px at 85% -10%,var(--glow) 0%,transparent 62%),var(--bg)}
+h1,h2,h3{margin:0;line-height:1.3}
+h1{font-size:clamp(22px,3vw,30px)} h2{font-size:18px} h3{font-size:16px}
+p{margin:0}
+a{color:var(--accent)}
+code,.mono{font-family:var(--mono)}
+.mono,.ltr{direction:ltr;unicode-bidi:isolate;display:inline-block}
+.muted{color:var(--muted)} .small{font-size:13px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* top bar */
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:10px clamp(16px,4vw,32px);background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700}
+.logo{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:#06142e;background:linear-gradient(135deg,#38bdf8,#2563eb)}
+.topbar nav{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.topbar nav a{color:var(--muted);text-decoration:none;padding:7px 12px;border-radius:10px;font-weight:600}
+.topbar nav a:hover{color:var(--text);background:var(--card)}
+.topbar nav a[aria-current=page]{color:var(--text);background:var(--card);box-shadow:inset 0 0 0 1px var(--line)}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.client-only{display:none}
+html.client-mode .client-only{display:inline-flex}
+html.client-mode .admin-only{display:none!important}
+.secure-banner{align-items:center;gap:8px;padding:6px 12px;border-radius:99px;font-size:13px;font-weight:700;color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
+
+main{max-width:1120px;margin:0 auto;padding:clamp(16px,3vw,32px);display:block}
+.stack{display:grid;gap:20px} .stack-sm{display:grid;gap:12px}
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.layout{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
+.back{display:inline-block;margin-bottom:6px;color:var(--muted);text-decoration:none;font-weight:600}
+.back:hover{color:var(--text)}
+
+/* cards, forms */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:clamp(14px,2.5vw,24px);box-shadow:var(--shadow);min-width:0}
+.card>.stack-sm,.card>.stack{min-width:0}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+form.card{display:grid;gap:14px}
+label{display:grid;gap:6px;font-weight:600;font-size:13px;color:var(--muted)}
+input,textarea,select{width:100%;font:inherit;color:var(--text);background:var(--input);border:1px solid var(--line);border-radius:10px;padding:9px 12px;outline:none;min-width:0}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
+textarea{resize:vertical;min-height:84px}
+input[type=checkbox]{width:18px;height:18px;padding:0;accent-color:var(--accent-2)}
+input[type=file]{padding:7px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:640px){.grid2,.grid3{grid-template-columns:1fr}}
+.input-row{display:flex;gap:8px}.input-row input{flex:1;min-width:0}
+.hint{font-size:12.5px;font-weight:400;color:var(--muted)}
+.notice{font-size:13.5px;color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:10px;padding:10px 12px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sep{height:1px;background:var(--line);margin:4px 0}
+
+.btn,button{font:inherit;font-weight:700;cursor:pointer;color:var(--text);background:var(--card-2);border:1px solid var(--line);border-radius:10px;
+  padding:8px 14px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:hover,button:hover{border-color:var(--line-2);filter:brightness(1.06)}
+.btn.primary,button.primary{background:linear-gradient(135deg,#2563eb,#1d4ed8);border-color:#3b82f6;color:#fff}
+.btn.small,button.small{padding:5px 11px;font-size:13px}
+.btn.ghost,button.ghost{background:transparent}
+.btn.danger,button.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+button:disabled{opacity:.55;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.msg{font-size:13.5px;border-radius:10px;padding:10px 12px;border:1px solid var(--line);background:var(--card-2);display:grid;gap:6px}
+.msg.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,transparent);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.msg.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,transparent);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+.msg.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,transparent);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.link{display:block;font-family:var(--mono);font-size:12.5px;color:var(--accent);word-break:break-all;background:var(--input);border:1px solid var(--line);border-radius:8px;padding:8px 10px;direction:ltr;text-align:left}
+.empty{padding:18px;text-align:center;border:1px dashed var(--line);border-radius:12px;color:var(--muted)}
+
+/* badges & pills */
+.badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:700;border:1px solid transparent;white-space:nowrap}
+.badge.enc{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.badge.pending{background:color-mix(in srgb,var(--muted) 14%,transparent);color:var(--muted);border-color:var(--line-2)}
+.badge.progress{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.badge.done{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+.badge.late{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+.ico{display:inline-flex;vertical-align:middle;flex:none}
+
+/* dashboard */
+.kpis{display:grid;grid-template-columns:repeat(var(--n,4),minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.kpi{background:var(--card);padding:12px 16px;min-width:0}
+.kpi .l{font-size:12.5px;color:var(--muted);font-weight:600}
+.kpi .v{font-size:20px;font-weight:800;margin-top:2px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.kpi .sub{font-size:12.5px;color:var(--muted);margin-top:1px;font-variant-numeric:tabular-nums}
+.kpi.pos .v{color:var(--ok)} .kpi.neg .v{color:var(--bad)} .kpi.warn .v{color:var(--warn)}
+@media (max-width:760px){.kpis{grid-template-columns:1fr 1fr}.kpis>.kpi:last-child:nth-child(odd){grid-column:1/-1}.kpi{padding:11px 12px}.kpi .v{font-size:clamp(15px,4.4vw,20px)}}
+.list{display:grid;gap:12px}
+.item{display:grid;gap:10px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--card-2)}
+.item-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.item-top .badge{margin-inline-start:auto}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:inline-flex;gap:6px;align-items:center;padding:3px 9px;border-radius:8px;font-size:12.5px;background:var(--bg-2);border:1px solid var(--line)}
+
+/* project tabs & editor */
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+.tab{white-space:nowrap}
+.tab[aria-selected=true]{background:var(--accent-2);border-color:var(--accent-2);color:#fff}
+.addrow{display:grid;grid-template-columns:minmax(120px,1fr) minmax(120px,2fr) auto;gap:8px;align-items:end}
+@media (max-width:640px){.addrow{grid-template-columns:1fr}}
+.rg{display:grid;gap:8px;align-items:center;grid-template-columns:var(--cols,1fr)}
+@media (max-width:700px){.rg{grid-template-columns:1fr 1fr}.rg>.wide{grid-column:1/-1}}
+.editor-stage{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card-2);display:grid;gap:10px}
+.editor-stage .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.editor-stage select{width:auto}
+.check{display:flex;gap:10px;align-items:center;font-weight:500;font-size:14px;color:var(--text)}
+.check span{flex:1;min-width:0;overflow-wrap:anywhere}
+.x{padding:2px 8px;font-size:14px;line-height:1.2}
+.savebar{position:sticky;bottom:0;z-index:15;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  padding:12px 16px;background:color-mix(in srgb,var(--card) 94%,transparent);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.private{border-inline-start:3px solid var(--warn)}
+.secretrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* progress */
+.bar{height:10px;border-radius:99px;background:var(--input);border:1px solid var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent-2),var(--accent));transition:width .6s ease}
+.bar.ok i{background:linear-gradient(90deg,#16a34a,var(--ok))}
+.mini{height:6px}
+
+/* client portal */
+.hero{display:grid;gap:16px}
+.hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.eyebrow{font-size:13px;color:var(--accent);font-weight:700;margin-bottom:4px}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:0}
+.meta div{background:var(--card-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.meta dt{font-size:12px;color:var(--muted);font-weight:600}
+.meta dd{margin:2px 0 0;font-weight:700;overflow-wrap:anywhere}
+.desc{color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere;opacity:.9}
+.pcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.pcard{text-align:start;display:grid;gap:6px;padding:12px;align-items:start;justify-content:stretch}
+.pcard[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+.stages{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.stage{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;display:grid;gap:12px;align-content:start;border-top:3px solid var(--line-2)}
+.stage.progress{border-top-color:var(--warn)} .stage.done{border-top-color:var(--ok)}
+.stage header{display:flex;align-items:center;gap:10px}
+.stage header .badge{margin-inline-start:auto}
+.step{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;background:var(--input);border:1px solid var(--line);flex:none}
+.stage.done .step{color:var(--ok);border-color:var(--ok)} .stage.progress .step{color:var(--warn);border-color:var(--warn)}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.checks li{display:flex;gap:9px;align-items:flex-start;opacity:.85}
+.checks li .ico{margin-top:4px;color:var(--line-2)}
+.checks li.done{opacity:1}.checks li.done .ico{color:var(--ok)}
+.parts{display:grid;gap:8px}
+.part{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card-2)}
+.part .nm{overflow-wrap:anywhere;font-weight:600}
+@media (max-width:560px){.part{grid-template-columns:1fr auto}.part .when{grid-column:1/-1}}
+.pay{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.pay:last-child{border-bottom:0}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.state{max-width:520px;margin:8vh auto 0;text-align:center;display:grid;gap:14px;justify-items:center}
+.state .actions{justify-content:center}
+.spin{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.gate{max-width:380px;margin:8vh auto 0;text-align:center}
+.gate-icon{width:52px;height:52px;margin:0 auto;border-radius:14px;display:grid;place-items:center;color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent)}
+.gate-icon .ico svg{width:24px;height:24px}
+
+/* photos */
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.ph{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card-2);display:grid;align-content:start;min-width:0}
+.ph .imgbtn{padding:0;border:0;border-radius:0;background:var(--bg-2);aspect-ratio:4/3;display:block;width:100%}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph .cap{padding:6px 8px;font-size:12.5px;overflow-wrap:anywhere}
+.ph .cap small{display:block;color:var(--muted)}
+.ph-fail{display:grid;place-items:center;gap:4px;color:var(--muted);font-size:12px;padding:20px 8px;text-align:center}
+.ph .ctl{display:grid;gap:6px;padding:6px}
+dialog{color:var(--text)}
+dialog.dlg,dialog.lb{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:0;width:min(720px,94vw);max-height:92vh}
+dialog.lb{width:min(1000px,96vw)}
+dialog::backdrop{background:rgba(2,6,23,.75)}
+.dlg-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line)}
+.dlg-body{padding:18px;overflow:auto;max-height:calc(92vh - 60px);display:grid;gap:12px}
+.lb img{max-width:100%;max-height:68vh;object-fit:contain;display:block;margin:0 auto;border-radius:8px}
+.lb-nav{display:flex;justify-content:space-between;align-items:center;gap:10px}
+
+/* toasts */
+.toasts{position:fixed;inset-inline:0;bottom:16px;display:grid;justify-items:center;gap:8px;pointer-events:none;z-index:50}
+.toast{pointer-events:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;box-shadow:var(--shadow);max-width:90vw}
+.toast.bad{border-color:var(--bad)} .toast.ok{border-color:var(--ok)}
+
+/* tape-measure countdown: the one signature element */
+.tape-wrap{display:grid;gap:8px}
+.tape-head{display:flex;justify-content:space-between;align-items:baseline;gap:6px 16px;flex-wrap:wrap}
+.tape-big{font-size:clamp(24px,4.4vw,36px);font-weight:800;line-height:1.15;letter-spacing:-.01em}
+.tape{--tape:#f5c542;position:relative;height:40px;border-radius:6px;overflow:hidden;background-color:var(--tape);
+  background-image:repeating-linear-gradient(to right,#1c1917 0 1.5px,transparent 1.5px 8px),repeating-linear-gradient(to right,#1c1917 0 2px,transparent 2px 40px);
+  background-size:100% 30%,100% 56%;background-repeat:no-repeat;background-position:0 100%,0 100%;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.22),0 1px 0 var(--line)}
+[dir=rtl] .tape{background-image:repeating-linear-gradient(to left,#1c1917 0 1.5px,transparent 1.5px 8px),repeating-linear-gradient(to left,#1c1917 0 2px,transparent 2px 40px);background-position:100% 100%,100% 100%}
+.tape.late{--tape:#f87171}
+.tape.done{--tape:#4ade80}
+.tape-used{position:absolute;inset-block:0;inset-inline-start:0;background:color-mix(in srgb,var(--bg) 66%,transparent);transition:width .8s ease}
+.tape-now{position:absolute;inset-block:0;width:3px;margin-inline-start:-1.5px;background:var(--text);box-shadow:0 0 0 2px var(--tape)}
+.tape-ends{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;color:var(--muted)}
+
+/* misc */
+.bi{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media (max-width:560px){.bi{grid-template-columns:1fr}}
+.tablewrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{padding:8px 10px;text-align:start;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl th{font-size:12.5px;color:var(--muted);font-weight:600}
+.tbl tr:last-child td{border-bottom:0}
+.tbl td.n,.tbl th.n{text-align:end}
+details.card>summary{cursor:pointer;font-weight:700;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+details.card[open]>summary{margin-bottom:12px}
+.titleblock{display:grid;gap:6px}
+.titleblock h2{font-size:clamp(20px,3vw,26px)}
+.rowsep{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bar.thin{height:8px}
+.up{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ph .imgbtn:hover{filter:none;border:0}
+input[readonly]{opacity:.8}
+.pay .amt{font-weight:700;font-variant-numeric:tabular-nums}
+.pay .who{display:grid;gap:2px;min-width:0}
+/* shown by pure CSS after 8s, so it appears even if every script is blocked; the app replaces it once it starts */
+.slowhint{opacity:0;animation:slowfade .6s 8s forwards}
+@keyframes slowfade{to{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation-duration:.01ms!important}}
+</style>
+<!-- CryptoJS 4.2.0 is loaded by the start-up script above (cdnjs, then jsDelivr, then unpkg) so a slow CDN can never leave a blank page. -->
+<style>
+/* BOM */
+.bomrow .bomtot{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:end}
+@media (max-width:700px){.bomrow .bomtot{grid-column:1/-1;text-align:start}}
+/* client ratings */
+.scorebar{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px}
+.scorebar i{height:8px;border-radius:3px;background:var(--line)}
+.scorebar i.on{background:linear-gradient(90deg,var(--accent-2),var(--accent))}
+.fbitem{display:grid;gap:8px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card-2)}
+.fbquote{margin:0;padding:4px 12px;border-inline-start:3px solid var(--accent);white-space:pre-wrap;overflow-wrap:anywhere}
+.fbimport>summary{cursor:pointer;font-weight:700;color:var(--accent);padding:4px 0}
+.fbimport[open]>summary{margin-bottom:10px}
+.fbimport textarea{font-family:var(--mono);font-size:12.5px}
+/* report toolbar */
+.rp-filters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+@media (max-width:980px){.rp-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.rp-filters{grid-template-columns:1fr}}
+.chips-inline{display:contents}
+
+/* brand header (shared look with the client site) */
+.brand{text-decoration:none;color:var(--text)}
+.brandmark{display:inline-flex;align-items:center}
+.brandmark .mark,.logo-preview .mark{display:inline-flex}
+.mark svg{width:100%;height:100%;display:block}
+.brandimg{display:block;max-width:150px;object-fit:contain}
+.brand-name{font-weight:800;letter-spacing:.06em}
+.brand-sub{font-size:12px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:1px 9px}
+.grid2{align-items:start}
+
+</style>
+<style>
+/* The report "paper": always light, so a printout and the screen look the same in either theme */
+.rp-area{display:grid;justify-items:center;min-width:0}
+.paper{--ink:#0b0b0b;--ink2:#52514e;--mute:#898781;--grid:#e1e0d9;--blue:#1c5cab;--navy:#0d366b;--orange:#eb6834;
+  box-sizing:border-box;width:min(100%,794px);min-width:0;background:#fff;color:var(--ink);border-radius:10px;box-shadow:0 12px 44px rgba(0,0,0,.28);padding:clamp(16px,4.5vw,40px);
+  font:13px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Arabic","Noto Naskh Arabic",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.paper.land{width:min(100%,1123px)}
+.paper *{box-sizing:border-box}
+.rp-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.rp-logo{display:inline-flex;align-items:center;gap:12px}
+.rp-mark{display:inline-block;width:46px;height:46px;flex:none}.rp-mark svg{width:100%;height:100%;display:block}
+.rp-brand{font-size:28px;font-weight:800;letter-spacing:.14em;color:var(--navy);line-height:1}
+html[lang=ar] .rp-brand{letter-spacing:0}
+.rp-logoimg{max-height:56px;max-width:240px;object-fit:contain;display:block}
+.rp-meta{text-align:end;display:grid;gap:2px;color:var(--ink2);font-size:12px}.rp-meta strong{color:var(--ink);font-size:13px}
+.rp-band{height:5px;border-radius:3px;margin:12px 0 18px;background:linear-gradient(90deg,var(--blue) 0 72%,var(--orange) 72% 100%)}
+.rp-titleblock h1{margin:0 0 8px;font-size:clamp(19px,4vw,25px);line-height:1.25;color:var(--navy)}
+.rp-titleblock dl{display:flex;gap:6px 28px;flex-wrap:wrap;margin:0}
+.rp-titleblock dt{font-size:11px;color:var(--mute);font-weight:600}
+.rp-titleblock dd{margin:0;font-weight:600;color:var(--ink)}
+.rp-empty{padding:34px 16px;text-align:center;border:1px dashed #c3c2b7;border-radius:10px;color:var(--ink2);margin:22px 0}
+.rp-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:18px 0}
+.rp-kpi{border:1px solid var(--grid);border-top:3px solid var(--blue);border-radius:8px;padding:9px 12px;display:grid;gap:1px;min-width:0;break-inside:avoid;background:#fff}
+.rp-kpi .l{font-size:11.5px;color:var(--ink2);font-weight:600}
+.rp-kpi .v{font-size:clamp(14px,2.6vw,18px);font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--ink)}
+.rp-kpi .s{font-size:11.5px;color:var(--mute);font-variant-numeric:tabular-nums}
+.rp-kpi.pos{border-top-color:#0ca30c}.rp-kpi.pos .v{color:#006300}
+.rp-kpi.neg{border-top-color:#d03b3b}.rp-kpi.neg .v{color:#d03b3b}
+.rp-kpi.warn{border-top-color:#eda100}
+@media (max-width:640px){.rp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.rp-charts{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin:18px 0}
+.paper.land .rp-charts{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:900px){.paper.land .rp-charts{grid-template-columns:minmax(0,1fr)}}
+.rp-chart{margin:0;border:1px solid var(--grid);border-radius:10px;padding:10px 14px 12px;min-width:0;break-inside:avoid;background:#fff}
+.rp-chart figcaption{font-weight:700;font-size:13.5px;color:var(--ink);margin-bottom:6px;padding-inline-start:8px;border-inline-start:4px solid var(--orange);line-height:1.3}
+.rp-svg{display:block;width:100%;height:auto;max-width:640px;margin-inline:auto;overflow:visible}
+.rp-svg text{font-family:inherit}
+.rp-svg .tick{font-size:11.5px;fill:var(--mute)}
+.rp-svg .cat{font-size:12px;fill:var(--ink2)}.rp-svg .cat.sm{font-size:10.5px}
+.rp-svg .val{font-size:11.5px;fill:var(--ink);font-weight:600}
+.rp-svg .center{font-size:19px;font-weight:800;fill:var(--ink)}
+.rp-svg .grid{stroke:var(--grid);stroke-width:1}
+.rp-svg .axis{stroke:#c3c2b7;stroke-width:1.3}
+.donutwrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap;justify-content:center}
+.donutwrap .rp-svg{width:180px;height:180px;flex:none;margin:0}
+.legend{list-style:none;margin:0;padding:0}
+.legend.v{display:grid;gap:6px;flex:1;min-width:210px}
+.legend.v li{display:grid;grid-template-columns:12px minmax(0,1fr) auto 44px;gap:8px;align-items:center;font-size:12px}
+.legend:not(.v){display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;justify-content:center}
+.legend:not(.v) li{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:var(--ink2)}
+.legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+.legend .lb{overflow-wrap:anywhere;color:var(--ink2)}.legend b{font-variant-numeric:tabular-nums;color:var(--ink);font-weight:700}
+.legend .sh{color:var(--mute);text-align:end;font-variant-numeric:tabular-nums}
+.rp-sec{margin-top:20px}
+.rp-sec h3{margin:0 0 8px;font-size:14px;color:var(--navy);padding-inline-start:8px;border-inline-start:4px solid var(--orange);line-height:1.3;break-after:avoid}
+.rp-tblwrap{overflow-x:auto}
+.rp-tbl{width:100%;border-collapse:collapse;font-size:11.5px;color:var(--ink)}
+.rp-tbl th{background:#184f95;color:#fff;font-weight:700;padding:6px 8px;text-align:start;vertical-align:bottom;line-height:1.25}
+.rp-tbl th.n,.rp-tbl td.n{text-align:end}
+.rp-tbl td{padding:5px 8px;border-bottom:1px solid var(--grid);vertical-align:top;overflow-wrap:anywhere}
+.rp-tbl td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
+.rp-tbl td.wide{min-width:200px;white-space:pre-wrap}
+.rp-tbl tbody tr:nth-child(even) td{background:#f6f8fc}
+.rp-tbl tbody tr.total td{background:#e6edf7;font-weight:800;border-top:2px solid #184f95;border-bottom:0}
+.rp-tbl thead{display:table-header-group}.rp-tbl tr{break-inside:avoid}
+.rp-tbl.dense{font-size:10.5px}.rp-tbl.dense th,.rp-tbl.dense td{padding:5px 6px}
+.rp-foot{margin-top:24px;padding-top:10px;border-top:1px solid var(--grid);color:var(--ink2);font-size:11px;display:grid;gap:2px;text-align:center}
+.rp-conf{color:var(--mute)}
+@page{size:A4;margin:12mm}
+@page land{size:A4 landscape;margin:10mm}
+@media print{
+  html,body{background:#fff !important}
+  body{display:block !important}
+  .topbar,.toasts,#toasts,.rp-noprint,dialog,noscript{display:none !important}
+  #app{padding:0 !important;margin:0 !important;max-width:none !important;width:auto !important}
+  .rp-page,.rp-area{display:block !important;overflow:visible !important;margin:0 !important;padding:0 !important}
+  .paper{width:auto !important;max-width:none !important;box-shadow:none !important;border-radius:0 !important;padding:0 !important}
+  .paper.land{page:land}
+  .rp-tblwrap{overflow:visible}
+  .rp-sec{break-inside:auto}
+  .rp-sec.short{break-inside:avoid}
+  .rp-kpis{break-inside:avoid}
+  /* block / multi-column layouts fragment across pages reliably; grids can clip a chart at a page edge */
+  .rp-charts{display:block !important}
+  .paper.land .rp-charts{column-count:2;column-gap:14px}
+  .rp-chart{break-inside:avoid;page-break-inside:avoid;margin:0 0 12px}
+}
+
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="#dashboard" aria-label="DUSUR"><span class="brandmark" id="brandMark"></span><span class="brand-name" id="brandName">DUSUR</span><span class="brand-sub" data-i18n="app.adminTag">Admin</span></a>
+  <nav id="adminNav" class="admin-only" aria-label="Admin" hidden>
+    <a href="#dashboard" data-route="dashboard" data-i18n="nav.dashboard"></a>
+    <a href="#reports" data-route="reports" data-i18n="nav.reports"></a>
+    <a href="#settings" data-route="settings" data-i18n="nav.settings"></a>
+    <a href="#config" data-route="config" data-i18n="nav.config"></a>
+    <button type="button" id="btnLock" class="small ghost" data-i18n="nav.lock"></button>
+  </nav>
+  <div class="tools">
+    <button type="button" id="btnLang" class="small"></button>
+    <button type="button" id="btnTheme" class="small"></button>
+  </div>
+</header>
+
+<main id="app" tabindex="-1"><section class="card state"><div class="spin" role="progressbar" aria-label="Loading"></div><p class="muted">Loading… · جارٍ التحميل…</p><p class="muted small slowhint">Still blank? Scripts may be blocked here. Open this page in Chrome at its https:// GitHub Pages address (not inside a file viewer or preview). · لم تظهر شاشة؟ ربما تم حجب السكربتات هنا. افتح الصفحة من متصفح Chrome على عنوان https:// الخاص بـ GitHub Pages.</p></section></main>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px;text-align:center">JavaScript is required / يلزم تفعيل جافاسكربت</p></noscript>
+<script>
+window.__I18N = {"en":{"act.back":"← Back","act.close":"Close","act.copied":"Copied","act.copy":"Copy","act.copyFail":"Copy failed","act.down":"Down","act.edit":"Edit","act.generate":"Generate","act.hide":"Hide","act.loading":"Loading…","act.next":"Next","act.open":"Open","act.prev":"Previous","act.refresh":"Refresh","act.remove":"Remove","act.retry":"Try again","act.saving":"Saving…","act.show":"Show","act.up":"Up","badge.enc":"AES-256 Encrypted","badge.synced":"Encrypted · synced","boot.loadingLib":"Loading the encryption library…","boot.loadingLibText":"Fetching CryptoJS from a CDN. This can take a few seconds on a slow connection.","boot.noLib":"Encryption library not loaded","boot.noLibText":"The encryption library (CryptoJS) could not be loaded from any of the three CDNs (cdnjs, jsDelivr, unpkg). Check your connection or ad-blocker and reload.","boot.noSecure":"Secure connection required","boot.noSecureText":"This page needs HTTPS (or localhost) so the browser can use its cryptography features.","cat.materials":"Materials","cat.hardware":"Hardware & accessories","cat.labor":"Labor","cat.outsourced":"Outsourced work","cat.delivery":"Delivery","cat.installation":"Installation","cat.other":"Other","cfg.badRepo":"Repository name may only contain letters, numbers, dots, hyphens and underscores.","cfg.badUser":"GitHub username may only contain letters, numbers and hyphens.","cfg.checking":"Checking the connection and the private vault…","cfg.connected":"Connected to {repo}.","cfg.failed":"Could not save the configuration:","cfg.fillFirst":"Enter the username, repository and token first.","cfg.keepBlank":"Leave blank to keep the current one","cfg.needBoth":"The token and an admin password are required for first-time setup.","cfg.noPush":"Your account has no write access to this repository.","cfg.noticeEdit":"Leave the token and password blank to keep the current ones. Changing the password re-wraps the private vault key; your data is not re-encrypted.","cfg.noticeNew":"First-time setup. Nothing is hard-coded in this file: the connection is saved only in this browser, and the token is encrypted with the admin password you choose.","cfg.pat":"GitHub Personal Access Token (PAT)","cfg.patHint":"Use a fine-grained token limited to this one repository with Contents: Read and write. It is encrypted with your admin password before it is saved in this browser.","cfg.private":"This repository is private. Clients will not be able to load their files from raw.githubusercontent.com. Make it public (everything stays encrypted).","cfg.publicHint":"The repository must be public so clients can load their encrypted files. Costs, profit and notes are stored separately under a key that only your admin password can open.","cfg.pw":"Admin password","cfg.pw2":"Confirm admin password","cfg.pwHint":"At least {n} characters. It protects the token in this browser and the private vault in the repository. If you forget it, private records cannot be recovered.","cfg.pwMismatch":"The two passwords do not match.","cfg.pwShort":"Admin password must be at least {n} characters.","cfg.repo":"Repository name","cfg.repoLocked":"The username and repository are fixed after setup. To use another repository, reset the configuration first.","cfg.reset":"Reset configuration","cfg.resetConfirm":"Reset configuration?\n\nThis removes the saved connection from this browser. Nothing in the repository is deleted.","cfg.save":"Save configuration","cfg.saved":"Configuration saved.","cfg.saving":"Saving…","cfg.storage":"This browser blocked saving settings (private mode?).","cfg.test":"Test connection","cfg.testing":"Testing…","cfg.user":"GitHub username","cfg.vaultFound":"A private vault already exists in this repository. Use the admin password it was created with.","cfg.vaultNew":"No private vault yet. It is created when you save.","cfg.writeNote":"Write access is confirmed when you save the configuration.","cost.cogs":"COGS (direct cost)","cost.opex":"Operating expense","dash.active":"Active projects","dash.badFile":"Could not read private record {id}: ","dash.byType":"Profitability by project type","dash.clients":"Clients","dash.clientsN":"Clients: {n}","dash.empty":"No clients yet. Create the first order with “New client”.","dash.lateN":"{n} overdue","dash.loading":"Loading your records…","dash.loadingSub":"Decrypting the private vault.","dash.newClient":"New client","dash.noMatch":"No client matches your search.","dash.noProjects":"No projects yet","dash.projects":"Projects","dash.search":"Search by name, ID, phone or SKU","dash.type":"Type","ed.addCost":"Add cost","ed.addLink":"Add link","ed.addPart":"Add part","ed.addPayment":"Add payment","ed.addProject":"Add project","ed.addStage":"Add stage","ed.addTask":"Add task","ed.address":"Address","ed.amount":"Amount","ed.caption":"Caption","ed.client":"Client","ed.clientSees":"The client sees the price, the payments received and the remaining balance. Costs and profit are never shared.","ed.conflict":"This record changed elsewhere (409). Reload the page and try again.","ed.costNote":"What was it for?","ed.costsHint":"Add every direct cost (materials, hardware, labor…) as COGS and shop overheads as operating expense. Margins update as you type.","ed.delClient":"Delete client","ed.delClientConfirm":"Delete {n} with all projects and photos? This cannot be undone (older Git history is kept).","ed.delProject":"Delete this project","ed.delProjectConfirm":"Delete project {s}?","ed.deleted":"Client deleted.","ed.discardConfirm":"You have unsaved changes. Leave without saving?","ed.done":"done","ed.doneEditing":"Done editing","ed.due":"Due date","ed.dueHint":"Drives the countdown the client sees.","ed.editStructure":"Edit stages & tasks","ed.email":"Email","ed.internalNotes":"Internal notes (private)","ed.keyPhotos":"Changing the key re-encrypts this client’s photos when you save.","ed.link":"Private link for the client","ed.linkAfterSave":"Available after you save.","ed.name":"Client name","ed.newClient":"New client","ed.noChanges":"No changes","ed.noCosts":"No costs yet.","ed.noParts":"No parts yet.","ed.noPayments":"No payments yet.","ed.noPhotos":"No photos yet.","ed.noProjects":"No projects yet. Choose a type above and add the first one.","ed.noTemplate":"This project’s type has no template.","ed.notFound":"Client not found","ed.notFoundSub":"There is no record with ID {id}.","ed.notes":"Internal notes (private)","ed.notesHint":"Only you can see these.","ed.partName":"Part / piece name","ed.partsHint":"List the pieces of this project (doors, drawers, panels…). Each can have its own due date, and the client sees the time left for each.","ed.partsSummary":"{a} of {b} pieces completed","ed.payNote":"Note (e.g. deposit)","ed.phone":"Phone","ed.phone2":"Second phone","ed.photoUrl":"Image link","ed.photosHint":"Upload photos (resized and encrypted in your browser) or paste a direct link to an image. Uploaded photos can only be opened with the client’s key.","ed.price":"Contract price","ed.priceHint":"The total the client agreed to pay (your revenue).","ed.privateText":"Costs, profit, margins and internal notes are stored encrypted with your admin key and are never included in the client’s file.","ed.privateTitle":"Private — admin only","ed.progress":"Progress","ed.projDesc":"Description","ed.projTitle":"Project title","ed.projTitlePh":"Project title (optional)","ed.projType":"Project type","ed.projects":"Projects","ed.qty":"Qty","ed.received":"Payments received","ed.regenSku":"New SKU","ed.resetStages":"Reset to type template","ed.resetStagesConfirm":"Replace all stages and tasks with the type’s template? Current progress will be lost.","ed.save":"Save & publish","ed.saved":"Saved and published.","ed.savedAt":"Saved {t}","ed.secret":"Client Secret Key","ed.secretHint":"The client enters this key to open their link. Share it through a different channel than the link.","ed.sku":"SKU","ed.skuHint":"Generated automatically; you can edit it.","ed.start":"Start date","ed.tab.costs":"Costs & profit","ed.tab.details":"Details","ed.tab.parts":"Parts","ed.tab.payments":"Payments","ed.tab.photos":"Photos","ed.tab.stages":"Stages","ed.unsaved":"Unsaved changes","ed.uploadPhotos":"Upload photos","err.load":"Could not load your records","err.relock":"Your session expired. Lock and unlock again.","err.vaultPw":"The private vault is protected by a different admin password. Use the password it was created with.","fin.cogs":"COGS","fin.collected":"Collected","fin.gross":"Gross profit","fin.grossMargin":"Gross margin","fin.margin":"Margin","fin.markup":"Markup","fin.net":"Net profit","fin.netMargin":"Net margin","fin.opex":"Operating expenses","fin.paid":"Paid","fin.price":"Contract price","fin.remaining":"Remaining","fin.revenue":"Revenue","gh.401":"GitHub rejected the token (401). Check that it is valid and has not expired.","gh.403":"GitHub denied the request (403){m}. The token needs “Contents: Read and write” on this repository.","gh.404":"Not found (404). Check the username and repository, and that the token can access it.","gh.409":"The file changed on GitHub while you were editing it (409). Reload and try again.","gh.422":"GitHub refused the request (422){m}","gh.badFile":"Unexpected response from GitHub.","gh.network":"Network error: could not reach api.github.com.","gh.other":"GitHub error {s}{m}","lock.auto":"Locked after 15 minutes of inactivity.","lock.forgot":"Forgot password? Reset configuration","lock.placeholder":"Admin password","lock.sub":"Enter the admin password to unlock this page.","lock.title":"Admin access","lock.unlock":"Unlock","lock.unlocking":"Unlocking…","lock.wrong":"Incorrect admin password.","nav.config":"Configuration","nav.dashboard":"Dashboard","nav.lock":"Lock","nav.settings":"Settings","ph.badUrl":"Enter a direct image link starting with https://","ph.failed":"Image unavailable","ph.file":"Uploaded","ph.link":"Link","ph.linkAdded":"Link added.","ph.openOriginal":"Open original","ph.removeConfirm":"Remove this photo?","ph.saveFirst":"Save the client first, then upload photos.","ph.saveKeyFirst":"Save the new key first, then upload photos.","ph.title":"Photo","ph.tooBig":"{name} is too large (max 30 MB).","ph.unsupported":"{name} could not be read as an image.","ph.uploadFailed":"{n} photo(s) failed:","ph.uploaded":"{n} photo(s) uploaded.","ph.uploading":"Uploading {a} of {b}…","ph.view":"View photo","set.addType":"Add project type","set.badCode":"Each type needs a 2–5 character code (letters and digits).","set.badCur":"Currency must be a 3-letter code such as EGP.","set.badPrefix":"The prefix must be 1–6 letters or digits.","set.badStages":"Type {c} needs at least one stage, and every stage needs a name.","set.code":"Code","set.codeHint":"2–5 letters or digits, used in SKUs (e.g. KIT). Fixed after saving.","set.currency":"Currency","set.currencyHint":"3-letter code, e.g. EGP, USD, SAR.","set.dupCode":"Duplicate code {c}.","set.newType":"New type","set.noName":"Type {c} needs a name.","set.prefix":"ID / SKU prefix","set.prefixHint":"Used in client IDs (e.g. DS-CL-1001) and SKUs (e.g. DS-KIT-2610-0001).","set.removeConfirm":"Remove this project type? Existing projects keep their data.","set.removeType":"Remove type","set.resetConfirm":"Reset all project types to the defaults?","set.resetTypes":"Reset to defaults","set.save":"Save settings","set.saved":"Settings saved.","set.template":"Default stages & tasks","set.templateHint":"New projects of this type start with these stages and checklists.","set.typeName":"Name","set.types":"Project types","st.done":"Completed","st.pending":"Pending","st.progress":"In progress","time.left":"{d} left","time.noDate":"No due date","time.overdue":"Overdue by {d}","time.today":"Due today","tools.lang":"Language","tools.theme":"Switch theme","val.dates":"Project {s}: the due date is before the start date.","val.name":"Enter the client’s name.","val.price":"Project {s}: the price cannot be negative.","val.secret":"The Client Secret Key must be at least {n} characters.","val.sku":"Invalid SKU “{s}”. Use 3–40 letters, digits, - or _.","val.skuDup":"The SKU {s} is already used.","val.stage":"Project {s}: every stage needs a name.","app.adminTag":"Admin","nav.reports":"Reports","set.company":"Company profile","set.public":"Public","set.companyHint":"These details are published on the client site (name, contacts, logo). Do not enter anything private here.","set.brandName":"Company name","set.tagline":"Tagline (optional)","set.phone":"Phone","set.whatsapp":"WhatsApp number","set.whatsappHint":"Digits only, with the country code (e.g. 2010…). Clients tap it to message you and to send their rating.","set.email":"Email","set.website":"Website","set.address":"Address","set.logo":"Logo","set.logoHint":"Shown on the client site and on printed reports. PNG, JPG or WebP. Keep the default DUSUR logo if you prefer.","set.logoPick":"Upload logo","set.logoReset":"Use default logo","set.logoBig":"That image is too large. Use a smaller logo (under about 150 KB after resizing).","set.rating":"Ask clients to rate completed projects (out of 10)","set.ratingHint":"The rating box appears on the client site once every task of a project is done.","set.business":"Business defaults","set.defaultDays":"Default project duration (days)","set.defaultDaysHint":"New projects get this due date automatically. 0 leaves it empty.","set.footer":"Report footer text","set.footerHint":"Printed at the bottom of every report (for example the address or commercial register number).","set.device":"This device","set.idle":"Lock after inactivity","set.idleHint":"Applies to this browser only.","set.min":"{n} minutes","set.badDays":"Default duration must be a whole number between 0 and 730.","set.badBrand":"Enter a company name (English or Arabic).","set.badWebsite":"The website must start with https://","set.badEmail":"That email address does not look right.","set.badWa":"The WhatsApp number must be 8–15 digits including the country code.","set.publishFail":"Settings were saved, but the public company profile could not be published:","cfg.thisPage":"This admin page","cfg.thisPageHint":"Keep this address private. Clients must never receive it; they only use the client site link. Open it on your other devices to log in there.","cfg.conn":"Use on another device","cfg.connHint":"Create a connection code, send it privately to yourself and import it on the other device. You still need your admin password there. Use a long admin password: anyone who holds this code could try to guess it.","cfg.connMake":"Create connection code","cfg.connImportTitle":"Already set up on another device?","cfg.connImportHint":"Paste the connection code from your other device, then unlock with your admin password.","cfg.connImport":"Import connection code","cfg.connBad":"That connection code is not valid.","ed.tab.bom":"BOM list","bom.hint":"Bill of materials: every board, edge band, hardware item and accessory this project needs. It is private: clients never see it.","bom.items":"Items","bom.total":"Materials cost","bom.ofPrice":"Share of contract price","bom.none":"No materials listed yet.","bom.name":"Item name","bom.code":"Code","bom.cost":"Unit cost","bom.add":"Add item","bom.sync":"Add to costs (COGS)","bom.synced":"Costs updated from the BOM list. Save to keep them.","bom.syncHint":"Creates one COGS line per cost category in the Costs tab and replaces the lines it created before. Lines you typed yourself are not touched.","bom.costNote":"From BOM list","bom.print":"Print BOM list","bom.cat.board":"Boards and panels","bom.cat.edge":"Edge banding","bom.cat.hardware":"Hardware","bom.cat.finish":"Finishing","bom.cat.glass":"Glass and mirrors","bom.cat.accessory":"Accessories","bom.cat.other":"Other","bom.unit.pcs":"pcs","bom.unit.sheet":"sheet","bom.unit.m":"m","bom.unit.m2":"m²","bom.unit.kg":"kg","bom.unit.l":"L","bom.unit.set":"set","fb.title":"Client ratings","fb.report":"Satisfaction report","fb.avg":"Average rating","fb.count":"{n} rated projects","fb.outOf":"{n} out of 10","fb.outOf10":"out of 10","fb.latest":"Latest ratings","fb.noComment":"No comment.","fb.noRatings":"No ratings yet. They appear here once clients rate their completed projects.","fb.onDate":"Rated on {d}","fb.import":"Import a client rating","fb.importHint":"Clients send their rating as a message with an encrypted code (WhatsApp, email or copy). Paste one or several messages here: the codes are found automatically and checked against each client’s secret key.","fb.placeholder":"Paste the message(s) here… DSFB1.…","fb.importBtn":"Import ratings","fb.working":"Checking…","fb.none":"No rating code found in the pasted text.","fb.unknownClient":"Client {id} was not found.","fb.unreadable":"The code for {id} could not be read (damaged text or wrong key).","fb.unknownProject":"{id}: project {sku} was not found.","fb.older":"{sku}: a newer rating is already saved.","fb.imported":"{sku} ({id}): rating {n}/10 imported.","fb.saveFail":"{id}: could not save. {m}","fb.waiting":"Completed. Waiting for the client’s rating.","fb.rated":"Client rating","rp.type":"Report","rp.type.finance":"Finance report","rp.type.bom":"BOM list (bill of materials)","rp.type.production":"Production status report","rp.type.satisfaction":"Customer satisfaction report","rp.client":"Client","rp.project":"Project","rp.allClients":"All clients","rp.allProjects":"All projects","rp.from":"From (start date)","rp.to":"To","rp.rangeHint":"Projects are included by their start date.","rp.print":"Print / Save as PDF","rp.xlsx":"Download Excel","rp.printHint":"For a PDF, choose “Save as PDF” as the printer. If your browser asks, turn on “Background graphics” so the colours are printed.","rp.building":"Building…","rp.xlsxDone":"Excel file downloaded.","rp.xlsxFail":"Could not build the Excel file: {m}","rp.generated":"Generated","rp.scope":"Scope","rp.period":"Period","rp.currency":"Currency","rp.allDates":"All dates","rp.scopeAll":"{c} clients · {p} projects","rp.nProjects":"{n} projects","rp.empty":"There is no data for the selected filters.","rp.emptyBom":"No materials are listed for the selected projects. Add them in the project’s BOM tab.","rp.emptySat":"There are no client ratings for the selected filters yet.","rp.confidential":"Confidential — internal use only","rp.sheet.summary":"Summary","rp.sheet.charts":"Charts","rp.sheet.metric":"Metric","rp.sheet.value":"Value","rp.sheet.note":"Note","rp.k.projects":"Projects","rp.k.contract":"Contract value","rp.k.overdue":"Overdue","rp.k.avgProgress":"Average progress","rp.k.rated":"Rated projects","rp.k.highest":"Highest score","rp.k.lowest":"Lowest score","rp.k.response":"Rating response rate","rp.c.revCogs":"Revenue, COGS and gross profit","rp.c.costMix":"Where the cost goes","rp.c.payMonth":"Payments received by month","rp.c.margin":"Gross margin by project","rp.c.bomCat":"Material cost by category","rp.c.bomTop":"Largest items by cost","rp.c.status":"Projects by status","rp.c.progress":"Progress by project","rp.c.dueMonth":"Deliveries due by month","rp.c.parts":"Pieces by status","rp.c.dist":"Score distribution","rp.c.byType":"Average score by project type","rp.c.overTime":"Average score by month","rp.t.projects":"Projects","rp.t.byType":"By project type","rp.t.costs":"Cost breakdown","rp.t.bomCat":"By category","rp.t.consol":"Consolidated materials (for purchasing)","rp.t.parts":"Pieces","rp.t.ratings":"Ratings and comments","rp.col.sku":"SKU","rp.col.client":"Client","rp.col.type":"Type","rp.col.title":"Project","rp.col.status":"Status","rp.col.start":"Start","rp.col.due":"Due","rp.col.left":"Days left","rp.col.progress":"Progress","rp.col.count":"Count","rp.col.total":"Total","rp.col.share":"Share","rp.col.cat":"Category","rp.col.code":"Code","rp.col.item":"Item","rp.col.qty":"Qty","rp.col.unit":"Unit","rp.col.unitCost":"Unit cost","rp.col.totalCost":"Total cost","rp.col.piece":"Piece","rp.col.score":"Score","rp.col.date":"Date","rp.col.comment":"Comment"},"ar":{"act.back":"→ رجوع","act.close":"إغلاق","act.copied":"تم النسخ","act.copy":"نسخ","act.copyFail":"تعذّر النسخ","act.down":"لأسفل","act.edit":"تعديل","act.generate":"توليد","act.hide":"إخفاء","act.loading":"جارٍ التحميل…","act.next":"التالي","act.open":"فتح","act.prev":"السابق","act.refresh":"تحديث","act.remove":"حذف","act.retry":"حاول مرة أخرى","act.saving":"جارٍ الحفظ…","act.show":"إظهار","act.up":"لأعلى","badge.enc":"مشفّر AES-256","badge.synced":"مشفّر · متزامن","boot.loadingLib":"جارٍ تحميل مكتبة التشفير…","boot.loadingLibText":"يجري جلب CryptoJS من الشبكة. قد يستغرق ذلك بضع ثوانٍ مع الاتصال البطيء.","boot.noLib":"مكتبة التشفير لم تُحمَّل","boot.noLibText":"تعذّر تحميل مكتبة التشفير (CryptoJS) من أي من الشبكات الثلاث (cdnjs وjsDelivr وunpkg). تأكد من الاتصال أو من إضافة حجب الإعلانات ثم أعد تحميل الصفحة.","boot.noSecure":"يلزم اتصال آمن","boot.noSecureText":"تحتاج هذه الصفحة إلى HTTPS (أو localhost) حتى يتمكن المتصفح من استخدام خصائص التشفير.","cat.materials":"خامات","cat.hardware":"اكسسوارات وهاردوير","cat.labor":"عمالة","cat.outsourced":"أعمال خارجية","cat.delivery":"توصيل","cat.installation":"تركيب","cat.other":"أخرى","cfg.badRepo":"اسم المستودع يقبل الحروف والأرقام والنقطة والشرطة والشرطة السفلية فقط.","cfg.badUser":"اسم مستخدم GitHub يقبل الحروف والأرقام والشرطة فقط.","cfg.checking":"جارٍ فحص الاتصال والخزنة الخاصة…","cfg.connected":"تم الاتصال بالمستودع {repo}.","cfg.failed":"تعذّر حفظ الإعدادات:","cfg.fillFirst":"أدخل اسم المستخدم والمستودع والتوكن أولًا.","cfg.keepBlank":"اتركه فارغًا للإبقاء على الحالي","cfg.needBoth":"التوكن وكلمة مرور المسؤول مطلوبان عند الإعداد لأول مرة.","cfg.noPush":"حسابك لا يملك صلاحية الكتابة على هذا المستودع.","cfg.noticeEdit":"اترك التوكن وكلمة المرور فارغين للإبقاء على الحاليين. تغيير كلمة المرور يعيد تغليف مفتاح الخزنة الخاصة فقط، ولا تُعاد تشفير بياناتك.","cfg.noticeNew":"إعداد أول مرة. لا شيء مكتوب داخل هذا الملف: يُحفظ الاتصال في هذا المتصفح فقط، ويُشفَّر التوكن بكلمة مرور المسؤول التي تختارها.","cfg.pat":"توكن الوصول الشخصي من GitHub (PAT)","cfg.patHint":"استخدم توكن دقيق الصلاحيات (fine-grained) مقصورًا على هذا المستودع فقط بصلاحية Contents: Read and write. يُشفَّر بكلمة مرور المسؤول قبل حفظه في هذا المتصفح.","cfg.private":"هذا المستودع خاص. لن يستطيع العملاء تحميل ملفاتهم من raw.githubusercontent.com. اجعله عامًا (تبقى كل البيانات مشفّرة).","cfg.publicHint":"يجب أن يكون المستودع عامًا ليحمّل العملاء ملفاتهم المشفّرة. التكاليف والأرباح والملاحظات تُخزَّن منفصلة بمفتاح لا يفتحه إلا كلمة مرور المسؤول.","cfg.pw":"كلمة مرور المسؤول","cfg.pw2":"تأكيد كلمة مرور المسؤول","cfg.pwHint":"{n} أحرف على الأقل. تحمي التوكن في هذا المتصفح والخزنة الخاصة في المستودع. إذا نسيتها فلن يمكن استرجاع السجلات الخاصة.","cfg.pwMismatch":"كلمتا المرور غير متطابقتين.","cfg.pwShort":"يجب ألا تقل كلمة مرور المسؤول عن {n} أحرف.","cfg.repo":"اسم المستودع","cfg.repoLocked":"اسم المستخدم والمستودع ثابتان بعد الإعداد. لاستخدام مستودع آخر أعد ضبط الإعدادات أولًا.","cfg.reset":"إعادة ضبط الإعدادات","cfg.resetConfirm":"إعادة ضبط الإعدادات؟\n\nسيتم حذف الاتصال المحفوظ من هذا المتصفح. لن يُحذف أي شيء من المستودع.","cfg.save":"حفظ الإعدادات","cfg.saved":"تم حفظ الإعدادات.","cfg.saving":"جارٍ الحفظ…","cfg.storage":"منع هذا المتصفح حفظ الإعدادات (ربما وضع التصفح الخاص؟).","cfg.test":"اختبار الاتصال","cfg.testing":"جارٍ الاختبار…","cfg.user":"اسم مستخدم GitHub","cfg.vaultFound":"توجد خزنة خاصة بالفعل في هذا المستودع. استخدم كلمة المرور التي أُنشئت بها.","cfg.vaultNew":"لا توجد خزنة خاصة بعد. ستُنشأ عند الحفظ.","cfg.writeNote":"تُؤكَّد صلاحية الكتابة عند حفظ الإعدادات.","cost.cogs":"تكلفة مباشرة (COGS)","cost.opex":"مصروفات تشغيل","dash.active":"مشروعات جارية","dash.badFile":"تعذّرت قراءة السجل الخاص {id}: ","dash.byType":"الربحية حسب نوع المشروع","dash.clients":"العملاء","dash.clientsN":"العملاء: {n}","dash.empty":"لا يوجد عملاء بعد. أنشئ أول طلب من زر «عميل جديد».","dash.lateN":"{n} متأخر","dash.loading":"جارٍ تحميل سجلاتك…","dash.loadingSub":"جارٍ فك تشفير الخزنة الخاصة.","dash.newClient":"عميل جديد","dash.noMatch":"لا يوجد عميل يطابق بحثك.","dash.noProjects":"لا توجد مشروعات بعد","dash.projects":"المشروعات","dash.search":"ابحث بالاسم أو الرقم أو الهاتف أو SKU","dash.type":"النوع","ed.addCost":"إضافة تكلفة","ed.addLink":"إضافة رابط","ed.addPart":"إضافة قطعة","ed.addPayment":"إضافة دفعة","ed.addProject":"إضافة مشروع","ed.addStage":"إضافة مرحلة","ed.addTask":"إضافة مهمة","ed.address":"العنوان","ed.amount":"المبلغ","ed.caption":"وصف الصورة","ed.client":"العميل","ed.clientSees":"يرى العميل السعر والمدفوعات المستلمة والمتبقي عليه. التكاليف والأرباح لا تُشارَك أبدًا.","ed.conflict":"تم تعديل هذا السجل من مكان آخر (409). أعد تحميل الصفحة وحاول مرة أخرى.","ed.costNote":"في ماذا صُرفت؟","ed.costsHint":"أضف كل تكلفة مباشرة (خامات، اكسسوارات، عمالة…) كتكلفة COGS، ومصروفات الورشة كمصروفات تشغيل. تتحدّث الهوامش أثناء الكتابة.","ed.delClient":"حذف العميل","ed.delClientConfirm":"حذف {n} مع كل مشروعاته وصوره؟ لا يمكن التراجع (يبقى سجل Git القديم).","ed.delProject":"حذف هذا المشروع","ed.delProjectConfirm":"حذف المشروع {s}؟","ed.deleted":"تم حذف العميل.","ed.discardConfirm":"لديك تغييرات غير محفوظة. المغادرة دون حفظ؟","ed.done":"تم","ed.doneEditing":"إنهاء التعديل","ed.due":"تاريخ التسليم","ed.dueHint":"يحدد العدّاد التنازلي الذي يراه العميل.","ed.editStructure":"تعديل المراحل والمهام","ed.email":"البريد الإلكتروني","ed.internalNotes":"ملاحظات داخلية (خاصة)","ed.keyPhotos":"تغيير المفتاح يعيد تشفير صور هذا العميل عند الحفظ.","ed.link":"الرابط الخاص بالعميل","ed.linkAfterSave":"يتوفر بعد الحفظ.","ed.name":"اسم العميل","ed.newClient":"عميل جديد","ed.noChanges":"لا تغييرات","ed.noCosts":"لا توجد تكاليف بعد.","ed.noParts":"لا توجد قطع بعد.","ed.noPayments":"لا توجد مدفوعات بعد.","ed.noPhotos":"لا توجد صور بعد.","ed.noProjects":"لا توجد مشروعات بعد. اختر نوعًا من الأعلى وأضف أول مشروع.","ed.noTemplate":"نوع هذا المشروع ليس له قالب.","ed.notFound":"العميل غير موجود","ed.notFoundSub":"لا يوجد سجل بالرقم {id}.","ed.notes":"ملاحظات داخلية (خاصة)","ed.notesHint":"لا يراها غيرك.","ed.partName":"اسم القطعة","ed.partsHint":"اذكر قطع هذا المشروع (أبواب، أدراج، ألواح…). يمكن لكل قطعة تاريخ تسليم خاص بها، ويرى العميل الوقت المتبقي لكل منها.","ed.partsSummary":"اكتمل {a} من {b} قطعة","ed.payNote":"ملاحظة (مثل: عربون)","ed.phone":"الهاتف","ed.phone2":"هاتف آخر","ed.photoUrl":"رابط الصورة","ed.photosHint":"ارفع صورًا (تُصغَّر وتُشفَّر داخل متصفحك) أو الصق رابطًا مباشرًا لصورة. الصور المرفوعة لا تُفتح إلا بمفتاح العميل.","ed.price":"سعر التعاقد","ed.priceHint":"إجمالي ما اتفق العميل على دفعه (إيرادك).","ed.privateText":"التكاليف والأرباح والهوامش والملاحظات الداخلية تُخزَّن مشفّرة بمفتاح المسؤول ولا تدخل أبدًا في ملف العميل.","ed.privateTitle":"خاص — للمسؤول فقط","ed.progress":"نسبة الإنجاز","ed.projDesc":"الوصف","ed.projTitle":"عنوان المشروع","ed.projTitlePh":"عنوان المشروع (اختياري)","ed.projType":"نوع المشروع","ed.projects":"المشروعات","ed.qty":"الكمية","ed.received":"المدفوعات المستلمة","ed.regenSku":"SKU جديد","ed.resetStages":"إعادة لقالب النوع","ed.resetStagesConfirm":"استبدال كل المراحل والمهام بقالب النوع؟ سيضيع التقدم الحالي.","ed.save":"حفظ ونشر","ed.saved":"تم الحفظ والنشر.","ed.savedAt":"تم الحفظ {t}","ed.secret":"مفتاح العميل السري","ed.secretHint":"يدخل العميل هذا المفتاح لفتح رابطه. أرسله عبر قناة غير التي أرسلت بها الرابط.","ed.sku":"SKU","ed.skuHint":"يُولَّد تلقائيًا ويمكنك تعديله.","ed.start":"تاريخ البدء","ed.tab.costs":"التكاليف والربح","ed.tab.details":"التفاصيل","ed.tab.parts":"القطع","ed.tab.payments":"المدفوعات","ed.tab.photos":"الصور","ed.tab.stages":"المراحل","ed.unsaved":"تغييرات غير محفوظة","ed.uploadPhotos":"رفع صور","err.load":"تعذّر تحميل سجلاتك","err.relock":"انتهت الجلسة. اقفل ثم افتح من جديد.","err.vaultPw":"الخزنة الخاصة محمية بكلمة مرور مسؤول مختلفة. استخدم الكلمة التي أُنشئت بها.","fin.cogs":"التكلفة المباشرة (COGS)","fin.collected":"المحصَّل","fin.gross":"مجمل الربح","fin.grossMargin":"هامش مجمل الربح","fin.margin":"الهامش","fin.markup":"نسبة الإضافة على التكلفة","fin.net":"صافي الربح","fin.netMargin":"هامش صافي الربح","fin.opex":"مصروفات التشغيل","fin.paid":"المدفوع","fin.price":"سعر التعاقد","fin.remaining":"المتبقي","fin.revenue":"الإيراد","gh.401":"رفض GitHub التوكن (401). تأكد أنه صحيح ولم تنتهِ صلاحيته.","gh.403":"رفض GitHub الطلب (403){m}. يحتاج التوكن إلى صلاحية «Contents: Read and write» على هذا المستودع.","gh.404":"غير موجود (404). تأكد من اسم المستخدم والمستودع ومن أن التوكن يصل إليه.","gh.409":"تغيّر الملف على GitHub أثناء تعديلك له (409). أعد التحميل وحاول مرة أخرى.","gh.422":"رفض GitHub الطلب (422){m}","gh.badFile":"ردّ غير متوقع من GitHub.","gh.network":"خطأ في الشبكة: تعذّر الوصول إلى api.github.com.","gh.other":"خطأ من GitHub {s}{m}","lock.auto":"تم القفل بعد 15 دقيقة من عدم النشاط.","lock.forgot":"نسيت كلمة المرور؟ إعادة ضبط الإعدادات","lock.placeholder":"كلمة مرور المسؤول","lock.sub":"أدخل كلمة مرور المسؤول لفتح هذه الصفحة.","lock.title":"دخول المسؤول","lock.unlock":"فتح","lock.unlocking":"جارٍ الفتح…","lock.wrong":"كلمة مرور المسؤول غير صحيحة.","nav.config":"الإعدادات العامة","nav.dashboard":"لوحة التحكم","nav.lock":"قفل","nav.settings":"إعدادات العمل","ph.badUrl":"أدخل رابط صورة مباشرًا يبدأ بـ https://","ph.failed":"الصورة غير متاحة","ph.file":"مرفوعة","ph.link":"رابط","ph.linkAdded":"تمت إضافة الرابط.","ph.openOriginal":"فتح الأصل","ph.removeConfirm":"حذف هذه الصورة؟","ph.saveFirst":"احفظ العميل أولًا ثم ارفع الصور.","ph.saveKeyFirst":"احفظ المفتاح الجديد أولًا ثم ارفع الصور.","ph.title":"صورة","ph.tooBig":"الملف {name} كبير جدًا (الحد الأقصى 30 ميجابايت).","ph.unsupported":"تعذّرت قراءة {name} كصورة.","ph.uploadFailed":"فشل رفع {n} من الصور:","ph.uploaded":"تم رفع {n} من الصور.","ph.uploading":"جارٍ رفع {a} من {b}…","ph.view":"عرض الصورة","set.addType":"إضافة نوع مشروع","set.badCode":"كل نوع يحتاج كودًا من 2 إلى 5 خانات (حروف وأرقام).","set.badCur":"العملة يجب أن تكون كودًا من 3 حروف مثل EGP.","set.badPrefix":"البادئة يجب أن تكون من 1 إلى 6 حروف أو أرقام.","set.badStages":"النوع {c} يحتاج مرحلة واحدة على الأقل، وكل مرحلة تحتاج اسمًا.","set.code":"الكود","set.codeHint":"من 2 إلى 5 حروف أو أرقام، يُستخدم في SKU (مثل KIT). يثبت بعد الحفظ.","set.currency":"العملة","set.currencyHint":"كود من 3 حروف مثل EGP أو USD أو SAR.","set.dupCode":"الكود {c} مكرر.","set.newType":"نوع جديد","set.noName":"النوع {c} يحتاج اسمًا.","set.prefix":"بادئة الأرقام وSKU","set.prefixHint":"تُستخدم في أرقام العملاء (مثل DS-CL-1001) وفي SKU (مثل DS-KIT-2610-0001).","set.removeConfirm":"حذف نوع المشروع هذا؟ المشروعات الحالية تحتفظ ببياناتها.","set.removeType":"حذف النوع","set.resetConfirm":"إعادة كل أنواع المشروعات إلى الافتراضي؟","set.resetTypes":"إعادة للافتراضي","set.save":"حفظ الإعدادات","set.saved":"تم حفظ الإعدادات.","set.template":"المراحل والمهام الافتراضية","set.templateHint":"المشروعات الجديدة من هذا النوع تبدأ بهذه المراحل وقوائم المهام.","set.typeName":"الاسم","set.types":"أنواع المشروعات","st.done":"مكتمل","st.pending":"قيد الانتظار","st.progress":"جارٍ التنفيذ","time.left":"متبقي {d}","time.noDate":"بدون موعد","time.overdue":"متأخر {d}","time.today":"التسليم اليوم","tools.lang":"اللغة","tools.theme":"تبديل المظهر","val.dates":"المشروع {s}: تاريخ التسليم قبل تاريخ البدء.","val.name":"أدخل اسم العميل.","val.price":"المشروع {s}: لا يمكن أن يكون السعر سالبًا.","val.secret":"يجب ألا يقل مفتاح العميل السري عن {n} أحرف.","val.sku":"رمز SKU غير صالح «{s}». استخدم من 3 إلى 40 حرفًا أو رقمًا أو - أو _.","val.skuDup":"رمز SKU {s} مستخدم من قبل.","val.stage":"المشروع {s}: كل مرحلة تحتاج اسمًا.","app.adminTag":"الإدارة","nav.reports":"التقارير","set.company":"بيانات الشركة","set.public":"علني","set.companyHint":"هذه البيانات تُنشر في موقع العملاء (الاسم ووسائل التواصل والشعار). لا تكتب هنا أي شيء خاص.","set.brandName":"اسم الشركة","set.tagline":"الشعار اللفظي (اختياري)","set.phone":"الهاتف","set.whatsapp":"رقم واتساب","set.whatsappHint":"أرقام فقط مع كود الدولة (مثل 2010…). يضغط عليه العميل لمراسلتك ولإرسال تقييمه.","set.email":"البريد الإلكتروني","set.website":"الموقع الإلكتروني","set.address":"العنوان","set.logo":"الشعار","set.logoHint":"يظهر في موقع العملاء وفي التقارير المطبوعة. PNG أو JPG أو WebP. يمكنك إبقاء شعار DUSUR الافتراضي.","set.logoPick":"رفع الشعار","set.logoReset":"استخدام الشعار الافتراضي","set.logoBig":"الصورة كبيرة جدًا. استخدم شعارًا أصغر (أقل من حوالي 150 كيلوبايت بعد التصغير).","set.rating":"اطلب من العملاء تقييم المشروعات المكتملة (من 10)","set.ratingHint":"يظهر مربع التقييم في موقع العملاء بعد إنجاز كل مهام المشروع.","set.business":"الإعدادات الافتراضية للعمل","set.defaultDays":"المدة الافتراضية للمشروع (بالأيام)","set.defaultDaysHint":"تُضاف هذه المدة تلقائيًا كموعد تسليم للمشروعات الجديدة. القيمة 0 تترك الخانة فارغة.","set.footer":"نص ذيل التقارير","set.footerHint":"يُطبع أسفل كل تقرير (مثل العنوان أو رقم السجل التجاري).","set.device":"هذا الجهاز","set.idle":"القفل عند عدم النشاط","set.idleHint":"يسري على هذا المتصفح فقط.","set.min":"{n} دقيقة","set.badDays":"المدة الافتراضية يجب أن تكون عددًا صحيحًا بين 0 و730.","set.badBrand":"اكتب اسم الشركة (بالعربية أو الإنجليزية).","set.badWebsite":"يجب أن يبدأ عنوان الموقع بـ https://","set.badEmail":"عنوان البريد الإلكتروني غير صحيح.","set.badWa":"رقم واتساب يجب أن يتكون من 8 إلى 15 رقمًا شاملًا كود الدولة.","set.publishFail":"تم حفظ الإعدادات لكن تعذّر نشر بيانات الشركة العلنية:","cfg.thisPage":"صفحة الإدارة هذه","cfg.thisPageHint":"أبقِ هذا العنوان سريًا. يجب ألا يصل إلى العملاء أبدًا؛ هم يستخدمون رابط موقع العملاء فقط. افتحه على أجهزتك الأخرى لتسجيل الدخول منها.","cfg.conn":"الاستخدام على جهاز آخر","cfg.connHint":"أنشئ رمز اتصال وأرسله لنفسك بشكل خاص ثم أدخله على الجهاز الآخر. ستحتاج إلى كلمة مرور المسؤول هناك أيضًا. استخدم كلمة مرور طويلة: من يحصل على هذا الرمز قد يحاول تخمينها.","cfg.connMake":"إنشاء رمز الاتصال","cfg.connImportTitle":"هل أعددته على جهاز آخر؟","cfg.connImportHint":"الصق رمز الاتصال من جهازك الآخر ثم افتح القفل بكلمة مرور المسؤول.","cfg.connImport":"استيراد رمز الاتصال","cfg.connBad":"رمز الاتصال هذا غير صالح.","ed.tab.bom":"قائمة المواد","bom.hint":"قائمة المواد: كل لوح وشريط حواف وإكسسوار يحتاجه المشروع. خاصة بك ولا يراها العميل.","bom.items":"عدد البنود","bom.total":"تكلفة المواد","bom.ofPrice":"نسبة التكلفة من سعر العقد","bom.none":"لم تُضف مواد بعد.","bom.name":"اسم البند","bom.code":"الكود","bom.cost":"سعر الوحدة","bom.add":"إضافة بند","bom.sync":"ترحيل إلى التكاليف (COGS)","bom.synced":"تم تحديث التكاليف من قائمة المواد. احفظ للاحتفاظ بها.","bom.syncHint":"يُنشئ سطر تكلفة (COGS) واحدًا لكل فئة في تبويب التكاليف ويستبدل ما أنشأه سابقًا، دون المساس بما كتبته يدويًا.","bom.costNote":"من قائمة المواد","bom.print":"طباعة قائمة المواد","bom.cat.board":"ألواح","bom.cat.edge":"شريط حواف","bom.cat.hardware":"إكسسوارات وحدائد","bom.cat.finish":"دهانات وتشطيب","bom.cat.glass":"زجاج ومرايا","bom.cat.accessory":"ملحقات","bom.cat.other":"أخرى","bom.unit.pcs":"قطعة","bom.unit.sheet":"لوح","bom.unit.m":"م","bom.unit.m2":"م²","bom.unit.kg":"كجم","bom.unit.l":"لتر","bom.unit.set":"طقم","fb.title":"تقييمات العملاء","fb.report":"تقرير الرضا","fb.avg":"متوسط التقييم","fb.count":"{n} مشروع مُقيَّم","fb.outOf":"{n} من 10","fb.outOf10":"من 10","fb.latest":"أحدث التقييمات","fb.noComment":"بدون تعليق.","fb.noRatings":"لا توجد تقييمات بعد. تظهر هنا عندما يقيّم العملاء مشروعاتهم المكتملة.","fb.onDate":"تاريخ التقييم: {d}","fb.import":"استيراد تقييم عميل","fb.importHint":"يرسل العميل تقييمه كرسالة تحوي رمزًا مشفّرًا (واتساب أو بريد أو نسخ). الصق رسالة أو أكثر هنا: يتم العثور على الرموز تلقائيًا والتحقق منها بالمفتاح السري لكل عميل.","fb.placeholder":"الصق الرسائل هنا… DSFB1.…","fb.importBtn":"استيراد التقييمات","fb.working":"جارٍ الفحص…","fb.none":"لم يتم العثور على رمز تقييم في النص.","fb.unknownClient":"لم يتم العثور على العميل {id}.","fb.unreadable":"تعذّرت قراءة رمز العميل {id} (نص ناقص أو مفتاح غير مطابق).","fb.unknownProject":"{id}: لم يتم العثور على المشروع {sku}.","fb.older":"{sku}: يوجد تقييم أحدث محفوظ بالفعل.","fb.imported":"{sku} ({id}): تم استيراد التقييم {n}/10.","fb.saveFail":"{id}: تعذّر الحفظ. {m}","fb.waiting":"المشروع مكتمل. في انتظار تقييم العميل.","fb.rated":"تقييم العميل","rp.type":"التقرير","rp.type.finance":"التقرير المالي","rp.type.bom":"قائمة المواد (BOM)","rp.type.production":"تقرير حالة الإنتاج","rp.type.satisfaction":"تقرير رضا العملاء","rp.client":"العميل","rp.project":"المشروع","rp.allClients":"كل العملاء","rp.allProjects":"كل المشروعات","rp.from":"من تاريخ","rp.to":"إلى تاريخ","rp.rangeHint":"تُدرج المشروعات حسب تاريخ بدايتها.","rp.print":"طباعة / حفظ PDF","rp.xlsx":"تنزيل Excel","rp.printHint":"للحصول على PDF اختر «حفظ بتنسيق PDF» كطابعة. إن سألك المتصفح فعّل «رسومات الخلفية» لتظهر الألوان.","rp.building":"جارٍ الإنشاء…","rp.xlsxDone":"تم تنزيل ملف Excel.","rp.xlsxFail":"تعذّر إنشاء ملف Excel: {m}","rp.generated":"تاريخ الإصدار","rp.scope":"النطاق","rp.period":"الفترة","rp.currency":"العملة","rp.allDates":"كل التواريخ","rp.scopeAll":"{c} عميل · {p} مشروع","rp.nProjects":"{n} مشروع","rp.empty":"لا توجد بيانات للمرشحات المحددة.","rp.emptyBom":"لا توجد مواد للمشروعات المحددة. أضفها من تبويب قائمة المواد في المشروع.","rp.emptySat":"لا توجد تقييمات عملاء للمرشحات المحددة بعد.","rp.confidential":"سري — للاستخدام الداخلي فقط","rp.sheet.summary":"الملخص","rp.sheet.charts":"الرسوم","rp.sheet.metric":"المؤشر","rp.sheet.value":"القيمة","rp.sheet.note":"ملاحظة","rp.k.projects":"المشروعات","rp.k.contract":"قيمة العقود","rp.k.overdue":"متأخرة","rp.k.avgProgress":"متوسط الإنجاز","rp.k.rated":"مشروعات مُقيَّمة","rp.k.highest":"أعلى تقييم","rp.k.lowest":"أقل تقييم","rp.k.response":"نسبة التقييم","rp.c.revCogs":"الإيراد وCOGS والربح الإجمالي","rp.c.costMix":"توزيع التكاليف","rp.c.payMonth":"المدفوعات المستلمة شهريًا","rp.c.margin":"هامش الربح الإجمالي لكل مشروع","rp.c.bomCat":"تكلفة المواد حسب الفئة","rp.c.bomTop":"أعلى البنود تكلفة","rp.c.status":"المشروعات حسب الحالة","rp.c.progress":"نسبة الإنجاز لكل مشروع","rp.c.dueMonth":"التسليمات المستحقة شهريًا","rp.c.parts":"القطع حسب الحالة","rp.c.dist":"توزيع التقييمات","rp.c.byType":"متوسط التقييم حسب نوع المشروع","rp.c.overTime":"متوسط التقييم شهريًا","rp.t.projects":"المشروعات","rp.t.byType":"حسب نوع المشروع","rp.t.costs":"تفصيل التكاليف","rp.t.bomCat":"حسب الفئة","rp.t.consol":"إجمالي المواد (للشراء)","rp.t.parts":"القطع","rp.t.ratings":"التقييمات والتعليقات","rp.col.sku":"كود المشروع","rp.col.client":"العميل","rp.col.type":"النوع","rp.col.title":"المشروع","rp.col.status":"الحالة","rp.col.start":"البداية","rp.col.due":"التسليم","rp.col.left":"الأيام المتبقية","rp.col.progress":"الإنجاز","rp.col.count":"العدد","rp.col.total":"الإجمالي","rp.col.share":"النسبة","rp.col.cat":"الفئة","rp.col.code":"الكود","rp.col.item":"البند","rp.col.qty":"الكمية","rp.col.unit":"الوحدة","rp.col.unitCost":"سعر الوحدة","rp.col.totalCost":"التكلفة","rp.col.piece":"القطعة","rp.col.score":"التقييم","rp.col.date":"التاريخ","rp.col.comment":"التعليق"}};
+</script>
+<script>
+(() => {
+'use strict';
+const I18N = window.__I18N;
+
+/* =====================================================================
+   Constants
+   ===================================================================== */
+const SCHEMA = 'dscl/2', PRIV = 'dscl-priv/2';
+const MIN_SECRET = 10, MIN_ADMIN_PW = 10, PBKDF2_ITERS = 310000;
+const LS_LANG = 'dsp.lang', LS_THEME = 'dsp.theme';
+const LS_CFG = 'dsp.config.v1';
+const ID_RE = /^[A-Za-z0-9_-]{3,40}$/;
+const GH = 'https://api.github.com';
+const STATUS = [['pending', 'st.pending', 'pending'], ['in_progress', 'st.progress', 'progress'], ['completed', 'st.done', 'done']];
+const statusInfo = (s) => STATUS.find((x) => x[0] === s) || STATUS[0];
+const COST_CATS = ['materials', 'hardware', 'labor', 'outsourced', 'delivery', 'installation', 'other'];
+
+// Shared mutable state (declared here so lock() can reset it)
+let session = null;      // { key, pat, pw, master, settings }
+let idleTimer = null, masterP = null, routeToken = 0;
+let ed = null;           // admin editor state
+let store = null;        // dashboard cache
+let cstate = null;       // client portal state
+let draftTypes = null;   // settings editor draft
+
+/* =====================================================================
+   Language, formatting
+   ===================================================================== */
+const ls = {
+  get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (_) { /* ignore */ } },
+};
+let lang = document.documentElement.lang === 'ar' ? 'ar' : 'en';
+const t = (key, vars) => {
+  let s = I18N[lang][key];
+  if (s === undefined) s = I18N.en[key];
+  if (s === undefined) { console.warn('i18n missing: ' + key); return key; }
+  return vars ? s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m)) : s;
+};
+const L = (v) => (v && typeof v === 'object' ? (v[lang] || v.en || v.ar || '') : (v == null ? '' : String(v)));
+const locale = () => (lang === 'ar' ? 'ar-EG-u-nu-latn' : 'en-GB');
+let CUR = 'EGP';
+const nf = (n, o) => new Intl.NumberFormat(locale(), o).format(n);
+const money = (n) => { try { return nf(n, { style: 'currency', currency: CUR, maximumFractionDigits: 2 }); } catch (_) { return nf(n, { maximumFractionDigits: 2 }) + ' ' + CUR; } };
+const pct = (x) => (x == null || !isFinite(x) ? '—' : nf(x * 100, { maximumFractionDigits: 1 }) + '%');
+const pad2 = (n) => String(n).padStart(2, '0');
+const parseDay = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); };
+const fmtDay = (s) => { const d = parseDay(s); return d ? d.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; };
+const fmtDateTime = (iso) => { const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }); };
+const daysUntil = (s) => { const d = parseDay(s); if (!d) return null; const n = new Date(); return Math.round((d - new Date(n.getFullYear(), n.getMonth(), n.getDate())) / 864e5); };
+const dayWord = (n) => (lang === 'ar'
+  ? (n === 1 ? 'يوم واحد' : n === 2 ? 'يومان' : n <= 10 ? nf(n) + ' أيام' : nf(n) + ' يومًا')
+  : (n === 1 ? '1 day' : nf(n) + ' days'));
+const timeLeft = (n) => (n === null ? '—' : n > 0 ? t('time.left', { d: dayWord(n) }) : n === 0 ? t('time.today') : t('time.overdue', { d: dayWord(-n) }));
+
+/* =====================================================================
+   DOM helpers
+   ===================================================================== */
+const $ = (sel, root = document) => root.querySelector(sel);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const clone = (o) => JSON.parse(JSON.stringify(o));
+
+// Children are always text nodes or elements, never parsed as HTML.
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  let val;
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === false || v == null) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'value') val = v;
+    else if (k === 'checked') e.checked = !!v;
+    else if (k.slice(0, 2) === 'on' && typeof v === 'function') e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? '' : String(v));
+  }
+  for (const kid of kids.flat(Infinity)) {
+    if (kid == null || kid === false) continue;
+    e.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  if (val !== undefined) e.value = val;
+  return e;
+}
+const SVG = (p) => '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>';
+const ICONS = {
+  lock: SVG('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+  check: SVG('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+  circle: SVG('<circle cx="12" cy="12" r="8"/>'),
+  logo: SVG('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>'),
+  alert: SVG('<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/>'),
+  sun: SVG('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+  moon: SVG('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'),
+  image: SVG('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-8 8"/>'),
+};
+const icon = (name) => { const s = h('span', { class: 'ico', 'aria-hidden': 'true' }); s.innerHTML = ICONS[name]; return s; };
+const hydrate = (root) => root.querySelectorAll('[data-icon]').forEach((n) => n.prepend(icon(n.dataset.icon)));
+const applyStatic = () => document.querySelectorAll('[data-i18n]').forEach((n) => { n.textContent = t(n.dataset.i18n); });
+const encBadge = (label) => h('span', { class: 'badge enc' }, icon('lock'), label || t('badge.enc'));
+const mount = (...nodes) => $('#app').replaceChildren(...nodes);
+
+function toast(text, kind) {
+  const el = h('div', { class: 'toast ' + (kind || '') }, text);
+  $('#toasts').append(el);
+  setTimeout(() => el.remove(), kind === 'bad' ? 7000 : 3000);
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* fall through */ }
+  const ta = h('textarea', { 'aria-hidden': 'true', style: 'position:fixed;opacity:0;top:0' });
+  ta.value = text; document.body.append(ta); ta.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch (_) { /* ignore */ }
+  ta.remove(); return ok;
+}
+function flash(btn, text) {
+  const old = btn.textContent; btn.textContent = text; btn.disabled = true;
+  setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 1400);
+}
+function copyBtn(textFn, cls) {
+  const b = h('button', { class: cls || 'small', type: 'button' }, t('act.copy'));
+  b.onclick = async () => flash(b, (await copyText(textFn())) ? t('act.copied') : t('act.copyFail'));
+  return b;
+}
+function notice(title, text, kind, opts) {
+  const o = opts || {};
+  return h('section', { class: 'card state' },
+    o.spinner ? h('div', { class: 'spin', role: 'progressbar', 'aria-label': t('act.loading') }) : null,
+    kind === 'bad' ? h('span', { class: 'badge late' }, icon('alert'), title) : h('h1', {}, title),
+    h('p', { class: 'muted' }, text),
+    o.actions && o.actions.length ? h('div', { class: 'actions' }, o.actions) : null);
+}
+function fld(labelKey, el, hintKey) { return h('label', {}, t(labelKey), el, hintKey ? h('span', { class: 'hint' }, t(hintKey)) : null); }
+
+// keep typed text when the language is switched on a form screen
+function snapshotInputs() {
+  const out = {};
+  document.querySelectorAll('#app [id]').forEach((n) => { if ('value' in n && n.id) out[n.id] = n.type === 'checkbox' ? n.checked : n.value; });
+  return out;
+}
+function restoreInputs(s) {
+  Object.entries(s).forEach(([id, v]) => { const n = document.getElementById(id); if (!n) return; if (n.type === 'checkbox') n.checked = v; else n.value = v; });
+}
+
+function syncTools() {
+  const b = $('#btnLang'); b.textContent = lang === 'ar' ? 'English' : 'العربية'; b.title = t('tools.lang');
+  const th = document.documentElement.getAttribute('data-theme');
+  const tb = $('#btnTheme'); tb.replaceChildren(icon(th === 'dark' ? 'sun' : 'moon'), h('span', { class: 'sr' }, t('tools.theme')));
+  tb.title = t('tools.theme');
+}
+function setTheme(th) { document.documentElement.setAttribute('data-theme', th); ls.set(LS_THEME, th); syncTools(); }
+function setLang(l) {
+  lang = l; const d = document.documentElement; d.lang = l; d.dir = l === 'ar' ? 'rtl' : 'ltr';
+  ls.set(LS_LANG, l); applyStatic(); syncTools();
+  const snap = snapshotInputs();
+  route({ keep: true }).then(() => restoreInputs(snap));
+}
+
+/* =====================================================================
+   Bytes & crypto
+   ===================================================================== */
+const enc = new TextEncoder(), dec = new TextDecoder();
+const bytesToB64 = (bytes) => { let s = ''; const CH = 0x8000; for (let i = 0; i < bytes.length; i += CH) s += String.fromCharCode.apply(null, bytes.subarray(i, i + CH)); return btoa(s); };
+const b64ToBytes = (b64) => Uint8Array.from(atob(String(b64).replace(/\s+/g, '')), (c) => c.charCodeAt(0));
+const textToB64 = (s) => bytesToB64(enc.encode(s));
+const b64ToText = (b) => dec.decode(b64ToBytes(b));
+const rand = (n) => crypto.getRandomValues(new Uint8Array(n));
+const hex = (u8) => Array.from(u8, (b) => b.toString(16).padStart(2, '0')).join('');
+const normSecret = (s) => String(s == null ? '' : s).normalize('NFKC').trim();
+function generateSecret() {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 symbols, no look-alikes -> 80 bits
+  let s = ''; rand(16).forEach((b, i) => { if (i && i % 4 === 0) s += '-'; s += A[b & 31]; }); return s;
+}
+async function pbkdf2Bits(secret, salt) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(secret), 'PBKDF2', false, ['deriveBits']);
+  return crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF2_ITERS }, base, 256);
+}
+async function deriveVaultKey(password, salt) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF2_ITERS }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function vaultSeal(key, plaintext) {
+  const iv = rand(12);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plaintext)));
+  return { iv: bytesToB64(iv), ct: bytesToB64(ct) };
+}
+async function vaultOpen(key, sealed) {
+  return dec.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToBytes(sealed.iv) }, key, b64ToBytes(sealed.ct)));
+}
+// master key wrapped by the admin password (stored in the repo so any device with the password can unlock)
+async function wrapMaster(password, raw) {
+  const salt = rand(16); const kek = await deriveVaultKey(password, salt); const s = await vaultSeal(kek, bytesToB64(raw));
+  return { v: 1, salt: bytesToB64(salt), iv: s.iv, ct: s.ct };
+}
+async function unwrapMaster(password, v) {
+  const kek = await deriveVaultKey(password, b64ToBytes(v.salt));
+  return b64ToBytes(await vaultOpen(kek, { iv: v.iv, ct: v.ct }));
+}
+const sealObj = async (obj) => { const s = await vaultSeal(session.master.key, JSON.stringify(obj)); return JSON.stringify({ v: 1, iv: s.iv, ct: s.ct }); };
+const openObj = async (text) => JSON.parse(await vaultOpen(session.master.key, JSON.parse(text)));
+// Client snapshot: AES-256 via CryptoJS; the key is stretched with PBKDF2 (salted by the client id) first.
+async function clientPassphrase(secret, id) { return hex(new Uint8Array(await pbkdf2Bits(normSecret(secret), enc.encode('dscl-v1:' + id)))); }
+async function encryptRecord(record, secret) {
+  return CryptoJS.AES.encrypt(JSON.stringify(record), await clientPassphrase(secret, record.id)).toString();
+}
+async function decryptRecord(cipher, secret, id) {
+  try {
+    if (!normSecret(secret)) return null;
+    const text = CryptoJS.AES.decrypt(String(cipher), await clientPassphrase(secret, id)).toString(CryptoJS.enc.Utf8);
+    if (!text) return null;
+    const rec = JSON.parse(text);
+    return rec && /^dscl\/[12]$/.test(rec.schema) && rec.id === id ? rec : null;
+  } catch (_) { return null; }
+}
+// Photos: AES-256-GCM, separate key derivation from the same client secret.
+const imgKeys = new Map();
+async function imageKey(secret, cid) {
+  const k = cid + '|' + secret;
+  if (!imgKeys.has(k)) imgKeys.set(k, crypto.subtle.importKey('raw', await pbkdf2Bits(normSecret(secret), enc.encode('dscl-img-v1:' + cid)), 'AES-GCM', false, ['encrypt', 'decrypt']));
+  return imgKeys.get(k);
+}
+async function sealBytes(key, bytes) {
+  const iv = rand(12); const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes));
+  const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12); return out;
+}
+const openBytes = async (key, bytes) => new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(0, 12) }, key, bytes.slice(12)));
+
+/* =====================================================================
+   Admin config + session
+   ===================================================================== */
+const loadCfg = () => { try { return JSON.parse(localStorage.getItem(LS_CFG) || 'null'); } catch (_) { return null; } };
+const saveCfg = (c) => localStorage.setItem(LS_CFG, JSON.stringify(c));
+
+async function unlock(password) {
+  const cfg = loadCfg();
+  if (!cfg || !password) return false;
+  try {
+    const key = await deriveVaultKey(password, b64ToBytes(cfg.salt));
+    const pat = await vaultOpen(key, { iv: cfg.iv, ct: cfg.ct });
+    session = { key, pat, pw: password, master: null, settings: null }; masterP = null;
+    armIdle(); return true;
+  } catch (_) { return false; }
+}
+const idleMs = () => { const m = parseInt(ls.get('dsp.idle'), 10); return ([5, 15, 30, 60].includes(m) ? m : 15) * 60000; };
+function armIdle() { clearTimeout(idleTimer); if (session) idleTimer = setTimeout(() => lock(true), idleMs()); }
+function lock(auto) {
+  session = null; masterP = null; ed = null; store = null; draftTypes = null; draftSet = null; clearTimeout(idleTimer);
+  document.querySelectorAll('dialog').forEach((d) => d.close()); clearImages();
+  if (auto) toast(t('lock.auto'));
+  route();
+}
+['pointerdown', 'keydown', 'touchstart'].forEach((ev) => addEventListener(ev, () => { if (session) armIdle(); }, { passive: true }));
+
+/* =====================================================================
+   GitHub REST API (writes are serialised: concurrent commits to one branch conflict)
+   ===================================================================== */
+function ghError(status, data) {
+  const m = data && data.message ? ': ' + data.message : '';
+  switch (status) {
+    case 401: return t('gh.401');
+    case 403: return t('gh.403', { m });
+    case 404: return t('gh.404');
+    case 409: return t('gh.409');
+    case 422: return t('gh.422', { m });
+    default: return t('gh.other', { s: status, m });
+  }
+}
+let wq = Promise.resolve();
+const queueWrite = (fn) => { const p = wq.then(fn, fn); wq = p.catch(() => {}); return p; };
+function gh(path, o = {}) {
+  const run = async () => {
+    const token = o.pat || (session && session.pat);
+    let res;
+    try {
+      res = await fetch(GH + path, {
+        method: o.method || 'GET', cache: 'no-store',
+        headers: Object.assign({ Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + token }, o.body ? { 'Content-Type': 'application/json' } : {}),
+        body: o.body ? JSON.stringify(o.body) : undefined,
+      });
+    } catch (_) { throw new Error(t('gh.network')); }
+    let data = null; try { data = await res.json(); } catch (_) { /* empty body */ }
+    if (!res.ok) { const err = new Error(ghError(res.status, data)); err.status = res.status; throw err; }
+    return data;
+  };
+  return o.method && o.method !== 'GET' ? queueWrite(run) : run();
+}
+const repoBase = (u, r) => '/repos/' + encodeURIComponent(u) + '/' + encodeURIComponent(r);
+const contentsUrl = (path) => { const c = loadCfg(); return repoBase(c.user, c.repo) + '/contents/' + path.split('/').map(encodeURIComponent).join('/'); };
+const shaCache = new Map();
+
+async function getFile(path) {
+  const r = await gh(contentsUrl(path));
+  if (Array.isArray(r) || r.encoding !== 'base64') throw new Error(t('gh.badFile'));
+  shaCache.set(path, r.sha); return { sha: r.sha, text: b64ToText(r.content) };
+}
+async function getSha(path) {
+  try { const r = await gh(contentsUrl(path)); return Array.isArray(r) ? null : r.sha; } catch (e) { if (e.status === 404) return null; throw e; }
+}
+// opt.create: must not exist · opt.sha: strict update against a known version · default: create or overwrite
+async function putFile(path, data, msg, opt = {}) {
+  const content = typeof data === 'string' ? textToB64(data) : bytesToB64(data);
+  const send = async (sha) => {
+    const r = await gh(contentsUrl(path), { method: 'PUT', body: Object.assign({ message: msg, content }, sha ? { sha } : {}) });
+    shaCache.set(path, r.content.sha); return r.content.sha;
+  };
+  if (opt.create) return send(null);
+  if (opt.sha) return send(opt.sha);
+  const first = shaCache.get(path);
+  try { return await send(first); } catch (e) {
+    if (e.status !== 409 && e.status !== 422) throw e;
+    const cur = await getSha(path); shaCache.set(path, cur); return send(cur);
+  }
+}
+async function delFile(path, msg, sha) {
+  sha = sha || await getSha(path); if (!sha) return;
+  await gh(contentsUrl(path), { method: 'DELETE', body: { message: msg || 'Delete ' + path, sha } }); shaCache.delete(path);
+}
+async function listDir(path) {
+  try { const r = await gh(contentsUrl(path)); return Array.isArray(r) ? r : []; } catch (e) {
+    if (e.status !== 404) throw e;
+    const c = loadCfg(); await gh(repoBase(c.user, c.repo)); // throws a clear error if the repo itself is unreachable
+    return [];
+  }
+}
+async function pool(items, n, fn) {
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) await fn(items[i++]); }));
+}
+function shareLink(id) {
+  const c = loadCfg();
+  const base = c.repo.toLowerCase() === c.user.toLowerCase() + '.github.io' ? 'https://' + c.user + '.github.io/' : 'https://' + c.user + '.github.io/' + c.repo + '/';
+  return base + '#client/' + id;
+}
+/* =====================================================================
+   Domain: project types, settings, money, progress
+   ===================================================================== */
+const T2 = (en, ar) => ({ en, ar });
+const mkStage = (key, en, ar, items) => ({ key, name: T2(en, ar), items: items.map(([a, b]) => T2(a, b)) });
+const S_CUT = () => mkStage('cutting', 'Cutting', 'القص', [['Materials checked against the cut list', 'مراجعة الخامات على قائمة القص'], ['Panels cut to size', 'قص الألواح بالمقاسات'], ['Dimensions and quantities verified', 'التأكد من المقاسات والكميات']]);
+const S_EDGE = () => mkStage('edge-banding', 'Edge Banding', 'تكسية الحواف', [['Edge banding colour matched', 'مطابقة لون الحواف'], ['Edges applied and trimmed', 'تركيب الحواف وتشطيبها'], ['Finish and glue lines inspected', 'فحص التشطيب وخطوط الغراء']]);
+const S_CNC = () => mkStage('cnc', 'CNC', 'CNC', [['Drilling and grooving programmed', 'برمجة الخرط والتفريز'], ['Hardware holes machined', 'تفريز فتحات الاكسسوارات'], ['Machined parts quality-checked', 'فحص جودة القطع المشغولة']]);
+const S_ASM = () => mkStage('assembly', 'Assembly', 'التجميع', [['Carcass assembled', 'تجميع الهيكل'], ['Doors, drawers and hardware fitted', 'تركيب الأبواب والأدراج والاكسسوارات'], ['Final inspection passed', 'اجتياز الفحص النهائي'], ['Packed and ready for delivery', 'التغليف والجاهزية للتسليم']]);
+const S_INS = () => mkStage('installation', 'Delivery & Installation', 'التوصيل والتركيب', [['Delivered to site', 'التوصيل إلى الموقع'], ['Installed and levelled', 'التركيب والضبط'], ['Client handover completed', 'تسليم العميل واستلامه']]);
+const defaultTypes = () => {
+  const full = () => [S_CUT(), S_EDGE(), S_CNC(), S_ASM(), S_INS()], base = () => [S_CUT(), S_EDGE(), S_CNC(), S_ASM()];
+  return [
+    { code: 'KIT', name: T2('Kitchen', 'مطبخ'), stages: full() },
+    { code: 'DRS', name: T2('Dressing room', 'غرفة ملابس'), stages: full() },
+    { code: 'TVU', name: T2('TV unit', 'وحدة تلفاز'), stages: full() },
+    { code: 'BTH', name: T2('Bathroom unit', 'وحدة حمام'), stages: full() },
+    { code: 'BED', name: T2('Bedroom', 'غرفة نوم'), stages: full() },
+    { code: 'OFC', name: T2('Office furniture', 'أثاث مكتبي'), stages: full() },
+    { code: 'JNR', name: T2('Joinery', 'أعمال نجارة'), stages: base() },
+    { code: 'OTH', name: T2('Custom project', 'مشروع مخصص'), stages: base() },
+  ];
+};
+const defaultSettings = () => ({ v: 2, prefix: 'DS', currency: 'EGP', seq: 0, cseq: 1000, defaultDays: 30, reportFooter: { en: '', ar: '' }, brand: BRAND_DEFAULT(), types: defaultTypes() });
+const addDays = (dayStr, n) => { const d = parseDay(dayStr); if (!d) return ''; d.setDate(d.getDate() + n); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); };
+
+const makeStages = (type) => type.stages.map((s) => ({ key: s.key, name: clone(s.name), status: 'pending', checklist: s.items.map((i) => ({ text: clone(i), done: false })) }));
+function newSku(type) {
+  const s = session.settings; s.seq = (s.seq || 0) + 1;
+  const d = new Date();
+  return s.prefix + '-' + type.code + '-' + String(d.getFullYear()).slice(2) + pad2(d.getMonth() + 1) + '-' + String(s.seq).padStart(4, '0');
+}
+function newProject(type) {
+  const days = num(session.settings.defaultDays);
+  return { sku: newSku(type), type: type.code, typeName: clone(type.name), title: '', description: '', startDate: todayStr(), dueDate: days > 0 ? addDays(todayStr(), Math.round(days)) : '', price: '',
+    payments: [], stages: makeStages(type), parts: [], photos: [], costs: [], bom: [], feedback: null, internalNotes: '' };
+}
+const num = (v) => { const n = Number(v); return isFinite(n) ? n : 0; };
+const sum = (arr, f) => (arr || []).reduce((a, x) => a + num(f(x)), 0);
+
+// Finance: revenue = contract price; COGS = direct costs; opex = operating costs.
+function finance(p) {
+  const price = num(p.price), paid = sum(p.payments, (x) => x.amount);
+  const cogs = sum((p.costs || []).filter((c) => c.type !== 'opex'), (c) => c.amount);
+  const opex = sum((p.costs || []).filter((c) => c.type === 'opex'), (c) => c.amount);
+  return fin2(price, paid, cogs, opex);
+}
+function fin2(price, paid, cogs, opex) {
+  const gross = price - cogs, net = gross - opex;
+  return { price, paid, remaining: price - paid, cogs, opex, gross, net,
+    grossMargin: price ? gross / price : null, netMargin: price ? net / price : null, markup: cogs ? gross / cogs : null, collected: price ? paid / price : null };
+}
+function finTotals(projects) {
+  const a = projects.map(finance);
+  return fin2(sum(a, (x) => x.price), sum(a, (x) => x.paid), sum(a, (x) => x.cogs), sum(a, (x) => x.opex));
+}
+function progress(p) {
+  let done = 0, total = 0;
+  for (const s of p.stages || []) {
+    const items = s.checklist || [];
+    if (items.length) { total += items.length; done += items.filter((i) => i.done).length; } else { total += 1; done += s.status === 'completed' ? 1 : 0; }
+  }
+  return total ? done / total : 0;
+}
+function projState(p) {
+  const pr = progress(p);
+  if (pr >= 1 && (p.stages || []).length) return 'completed';
+  return pr > 0 || (p.stages || []).some((s) => s.status !== 'pending') ? 'in_progress' : 'pending';
+}
+
+// What the client may see. Whitelisted field by field: costs, notes, secret and profit never leave the private record.
+function toPublic(rec) {
+  const pj = (p) => ({
+    sku: p.sku, type: p.type, typeName: p.typeName, title: p.title || '', description: p.description || '', startDate: p.startDate || '', dueDate: p.dueDate || '',
+    price: num(p.price), payments: (p.payments || []).map((x) => ({ date: x.date || '', amount: num(x.amount), note: x.note || '' })),
+    stages: (p.stages || []).map((s) => ({ key: s.key, name: s.name, status: s.status, checklist: (s.checklist || []).map((i) => ({ text: i.text, done: !!i.done })) })),
+    parts: (p.parts || []).map((x) => ({ name: x.name || '', qty: num(x.qty) || 1, status: x.status || 'pending', dueDate: x.dueDate || '' })),
+    photos: (p.photos || []).map((x) => (x.kind === 'link' ? { id: x.id, kind: 'link', url: x.url, caption: x.caption || '', date: x.date || '' } : { id: x.id, kind: 'file', caption: x.caption || '', date: x.date || '' })),
+    feedback: p.feedback ? { score: num(p.feedback.score), comment: p.feedback.comment || '', at: p.feedback.at || '' } : null,
+  });
+  return { schema: SCHEMA, id: rec.id, name: rec.client.name, phone: rec.client.phone, currency: CUR, createdAt: rec.createdAt, updatedAt: rec.updatedAt, projects: rec.projects.map(pj) };
+}
+function upgradePublic(r) {
+  if (r.schema === SCHEMA) return r;
+  return { schema: SCHEMA, id: r.id, name: r.name, phone: r.phone, currency: 'EGP', createdAt: r.createdAt, updatedAt: r.updatedAt,
+    projects: [{ sku: r.id, type: '', typeName: '', title: r.description || r.name, description: r.description || '', startDate: '', dueDate: '', price: 0, payments: [], stages: r.stages || [], parts: [], photos: [] }] };
+}
+function recFromPublic(pub, secret) {
+  const u = upgradePublic(pub);
+  return { schema: PRIV, id: u.id, secret, client: { name: u.name, phone: u.phone, phone2: '', email: '', address: '', notes: '' }, createdAt: u.createdAt, updatedAt: u.updatedAt,
+    projects: u.projects.map((p) => Object.assign({}, p, { costs: [], bom: [], internalNotes: '' })) };
+}
+
+/* =====================================================================
+   Repository store: vault, settings, private records, publishing, photos
+   ===================================================================== */
+function needMaster() {
+  if (!session) return Promise.reject(new Error(t('err.relock')));
+  if (session.master) return Promise.resolve(session.master);
+  if (masterP) return masterP;
+  masterP = (async () => {
+    const pw = session.pw; if (!pw) throw new Error(t('err.relock'));
+    let vault = null;
+    try { vault = JSON.parse((await getFile('data/private/vault.json')).text); } catch (e) { if (e.status !== 404) throw e; }
+    let raw;
+    if (vault) { try { raw = await unwrapMaster(pw, vault); } catch (_) { throw new Error(t('err.vaultPw')); } } else {
+      raw = rand(32); await putFile('data/private/vault.json', JSON.stringify(await wrapMaster(pw, raw)), 'Initialize private vault', { create: true });
+    }
+    session.master = 

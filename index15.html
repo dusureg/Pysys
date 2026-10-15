@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<!--
+  DUSUR — CLIENT site. One file, no backend, ready for GitHub Pages. Save it as index.html in the repository root.
+
+  Clients open  https://<username>.github.io/<repo>/  to search for their project, or the private link you copy from the
+  admin dashboard (…/#client/<id>). Everything is decrypted in the browser with the client's secret key.
+  This file contains no admin code, no token and no repository details: it works out the repository from its own address.
+-->
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'unsafe-inline'; connect-src https://raw.githubusercontent.com; img-src data: blob: https:; base-uri 'none'; form-action 'none'">
+<script>
+(function(){var d=document.documentElement;try{
+var l=localStorage.getItem('dsp.lang');if(l!=='ar'&&l!=='en')l=((navigator.language||'en').slice(0,2)==='ar')?'ar':'en';
+var th=localStorage.getItem('dsp.theme');if(th!=='light'&&th!=='dark')th='dark';
+d.lang=l;d.dir=l==='ar'?'rtl':'ltr';d.setAttribute('data-theme',th);}catch(e){}
+if(location.hash.indexOf('#client/')===0)d.classList.add('client-mode');})();
+
+/* Start-up safety net (plain ES5 so it works everywhere):
+   - records script errors, and if the app never starts shows WHY instead of an empty page
+   - loads CryptoJS without blocking the page, trying cdnjs, then jsDelivr, then unpkg */
+(function(){
+var D=window.__dsp={errs:[],booted:false,crypto:null};
+function rec(m){if(D.errs.length<8)D.errs.push(String(m).slice(0,300));}
+window.addEventListener('error',function(e){
+  var t=e&&e.target;
+  if(t&&t!==window&&(t.src||t.href)){rec('could not load '+(t.src||t.href));return;}
+  rec((e&&e.message||'script error')+(e&&e.filename?' ('+e.lineno+':'+e.colno+')':''));
+},true);
+window.addEventListener('unhandledrejection',function(e){rec('promise: '+(e.reason&&e.reason.message||e.reason));});
+
+var SRC=['https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js','https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js','https://unpkg.com/crypto-js@4.2.0/crypto-js.js'];
+D.crypto=new Promise(function(res){
+  var i=0;
+  (function next(){
+    if(window.CryptoJS)return res(true);
+    if(i>=SRC.length)return res(false);
+    var s=document.createElement('script'),done=false,tm=0,url=SRC[i];
+    function fin(){if(done)return;done=true;clearTimeout(tm);if(window.CryptoJS)res(true);else{i++;next();}}
+    s.onload=fin;s.onerror=fin;tm=setTimeout(fin,9000);
+    s.async=true;s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';s.src=url;
+    document.head.appendChild(s);
+  })();
+});
+
+function diag(){
+  if(D.booted)return;
+  var m=document.getElementById('app');if(!m||m.getAttribute('data-diag'))return;
+  m.setAttribute('data-diag','1');m.textContent='';
+  function el(tag,txt,st){var x=document.createElement(tag);if(txt)x.textContent=txt;if(st)x.style.cssText=st;m.firstChild?m.firstChild.appendChild(x):m.appendChild(x);return x;}
+  var c=document.createElement('section');c.className='card state';m.appendChild(c);
+  el('h1','The portal could not start — تعذّر تشغيل البوابة');
+  el('p','The page loaded but its script did not run. Open this page directly in Chrome from its https:// GitHub Pages address (not inside a file viewer, preview or in-app browser) and reload. If it still fails, send a screenshot of this box.','color:var(--muted)');
+  var info=[D.errs.length?D.errs.join('\n'):'(no script error was reported — scripts are probably blocked by the viewer)',
+    'page: '+location.protocol+'//'+location.host,'secure context: '+(window.isSecureContext?'yes':'no'),'crypto.subtle: '+(window.crypto&&crypto.subtle?'yes':'no'),'CryptoJS: '+(window.CryptoJS?'yes':'no'),'browser: '+(navigator.userAgent||'').slice(0,140)].join('\n');
+  el('pre',info,'white-space:pre-wrap;word-break:break-word;text-align:left;direction:ltr;font-size:12px;max-width:100%;overflow:auto;margin:0;padding:10px;border:1px solid var(--line);border-radius:8px');
+}
+document.addEventListener('DOMContentLoaded',function(){setTimeout(diag,2500);});
+})();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark light">
+<title>DUSUR — Client Portal</title>
+<link rel="icon" href="data:,">
+<style>
+:root,[data-theme=dark]{
+  --bg:#0f172a;--bg-2:#0b1224;--card:#1e293b;--card-2:#17233a;--line:#334155;--line-2:#475569;
+  --text:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8;--accent-2:#2563eb;
+  --ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--input:#0f172a;--glow:#1b2a4e;
+  --shadow:0 10px 30px rgba(2,6,23,.35);--radius:14px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+[data-theme=light]{
+  --bg:#f1f5f9;--bg-2:#e2e8f0;--card:#ffffff;--card-2:#f8fafc;--line:#cbd5e1;--line-2:#94a3b8;
+  --text:#0f172a;--muted:#475569;--accent:#0369a1;--accent-2:#2563eb;
+  --ok:#15803d;--warn:#b45309;--bad:#b91c1c;--input:#ffffff;--glow:#dbeafe;
+  --shadow:0 6px 20px rgba(15,23,42,.08);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{color-scheme:dark}
+html[data-theme=light]{color-scheme:light}
+body{margin:0;min-height:100vh;color:var(--text);
+  font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Arabic","Noto Naskh Arabic",Tahoma,sans-serif;
+  background:radial-gradient(1100px 520px at 85% -10%,var(--glow) 0%,transparent 62%),var(--bg)}
+h1,h2,h3{margin:0;line-height:1.3}
+h1{font-size:clamp(22px,3vw,30px)} h2{font-size:18px} h3{font-size:16px}
+p{margin:0}
+a{color:var(--accent)}
+code,.mono{font-family:var(--mono)}
+.mono,.ltr{direction:ltr;unicode-bidi:isolate;display:inline-block}
+.muted{color:var(--muted)} .small{font-size:13px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* top bar */
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:10px clamp(16px,4vw,32px);background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700}
+.logo{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:#06142e;background:linear-gradient(135deg,#38bdf8,#2563eb)}
+.topbar nav{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.topbar nav a{color:var(--muted);text-decoration:none;padding:7px 12px;border-radius:10px;font-weight:600}
+.topbar nav a:hover{color:var(--text);background:var(--card)}
+.topbar nav a[aria-current=page]{color:var(--text);background:var(--card);box-shadow:inset 0 0 0 1px var(--line)}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.client-only{display:none}
+html.client-mode .client-only{display:inline-flex}
+html.client-mode .admin-only{display:none!important}
+.secure-banner{align-items:center;gap:8px;padding:6px 12px;border-radius:99px;font-size:13px;font-weight:700;color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
+
+main{max-width:1120px;margin:0 auto;padding:clamp(16px,3vw,32px);display:block}
+.stack{display:grid;gap:20px} .stack-sm{display:grid;gap:12px}
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.layout{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
+.back{display:inline-block;margin-bottom:6px;color:var(--muted);text-decoration:none;font-weight:600}
+.back:hover{color:var(--text)}
+
+/* cards, forms */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:clamp(14px,2.5vw,24px);box-shadow:var(--shadow);min-width:0}
+.card>.stack-sm,.card>.stack{min-width:0}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+form.card{display:grid;gap:14px}
+label{display:grid;gap:6px;font-weight:600;font-size:13px;color:var(--muted)}
+input,textarea,select{width:100%;font:inherit;color:var(--text);background:var(--input);border:1px solid var(--line);border-radius:10px;padding:9px 12px;outline:none;min-width:0}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
+textarea{resize:vertical;min-height:84px}
+input[type=checkbox]{width:18px;height:18px;padding:0;accent-color:var(--accent-2)}
+input[type=file]{padding:7px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:640px){.grid2,.grid3{grid-template-columns:1fr}}
+.input-row{display:flex;gap:8px}.input-row input{flex:1;min-width:0}
+.hint{font-size:12.5px;font-weight:400;color:var(--muted)}
+.notice{font-size:13.5px;color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:10px;padding:10px 12px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sep{height:1px;background:var(--line);margin:4px 0}
+
+.btn,button{font:inherit;font-weight:700;cursor:pointer;color:var(--text);background:var(--card-2);border:1px solid var(--line);border-radius:10px;
+  padding:8px 14px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:hover,button:hover{border-color:var(--line-2);filter:brightness(1.06)}
+.btn.primary,button.primary{background:linear-gradient(135deg,#2563eb,#1d4ed8);border-color:#3b82f6;color:#fff}
+.btn.small,button.small{padding:5px 11px;font-size:13px}
+.btn.ghost,button.ghost{background:transparent}
+.btn.danger,button.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+button:disabled{opacity:.55;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.msg{font-size:13.5px;border-radius:10px;padding:10px 12px;border:1px solid var(--line);background:var(--card-2);display:grid;gap:6px}
+.msg.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,transparent);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.msg.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,transparent);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+.msg.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,transparent);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.link{display:block;font-family:var(--mono);font-size:12.5px;color:var(--accent);word-break:break-all;background:var(--input);border:1px solid var(--line);border-radius:8px;padding:8px 10px;direction:ltr;text-align:left}
+.empty{padding:18px;text-align:center;border:1px dashed var(--line);border-radius:12px;color:var(--muted)}
+
+/* badges & pills */
+.badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:700;border:1px solid transparent;white-space:nowrap}
+.badge.enc{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.badge.pending{background:color-mix(in srgb,var(--muted) 14%,transparent);color:var(--muted);border-color:var(--line-2)}
+.badge.progress{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.badge.done{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+.badge.late{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+.ico{display:inline-flex;vertical-align:middle;flex:none}
+
+/* dashboard */
+.kpis{display:grid;grid-template-columns:repeat(var(--n,4),minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.kpi{background:var(--card);padding:12px 16px;min-width:0}
+.kpi .l{font-size:12.5px;color:var(--muted);font-weight:600}
+.kpi .v{font-size:20px;font-weight:800;margin-top:2px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.kpi .sub{font-size:12.5px;color:var(--muted);margin-top:1px;font-variant-numeric:tabular-nums}
+.kpi.pos .v{color:var(--ok)} .kpi.neg .v{color:var(--bad)} .kpi.warn .v{color:var(--warn)}
+@media (max-width:760px){.kpis{grid-template-columns:1fr 1fr}.kpis>.kpi:last-child:nth-child(odd){grid-column:1/-1}.kpi{padding:11px 12px}.kpi .v{font-size:clamp(15px,4.4vw,20px)}}
+.list{display:grid;gap:12px}
+.item{display:grid;gap:10px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--card-2)}
+.item-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.item-top .badge{margin-inline-start:auto}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:inline-flex;gap:6px;align-items:center;padding:3px 9px;border-radius:8px;font-size:12.5px;background:var(--bg-2);border:1px solid var(--line)}
+
+/* project tabs & editor */
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+.tab{white-space:nowrap}
+.tab[aria-selected=true]{background:var(--accent-2);border-color:var(--accent-2);color:#fff}
+.addrow{display:grid;grid-template-columns:minmax(120px,1fr) minmax(120px,2fr) auto;gap:8px;align-items:end}
+@media (max-width:640px){.addrow{grid-template-columns:1fr}}
+.rg{display:grid;gap:8px;align-items:center;grid-template-columns:var(--cols,1fr)}
+@media (max-width:700px){.rg{grid-template-columns:1fr 1fr}.rg>.wide{grid-column:1/-1}}
+.editor-stage{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card-2);display:grid;gap:10px}
+.editor-stage .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.editor-stage select{width:auto}
+.check{display:flex;gap:10px;align-items:center;font-weight:500;font-size:14px;color:var(--text)}
+.check span{flex:1;min-width:0;overflow-wrap:anywhere}
+.x{padding:2px 8px;font-size:14px;line-height:1.2}
+.savebar{position:sticky;bottom:0;z-index:15;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  padding:12px 16px;background:color-mix(in srgb,var(--card) 94%,transparent);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.private{border-inline-start:3px solid var(--warn)}
+.secretrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* progress */
+.bar{height:10px;border-radius:99px;background:var(--input);border:1px solid var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent-2),var(--accent));transition:width .6s ease}
+.bar.ok i{background:linear-gradient(90deg,#16a34a,var(--ok))}
+.mini{height:6px}
+
+/* client portal */
+.hero{display:grid;gap:16px}
+.hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.eyebrow{font-size:13px;color:var(--accent);font-weight:700;margin-bottom:4px}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:0}
+.meta div{background:var(--card-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.meta dt{font-size:12px;color:var(--muted);font-weight:600}
+.meta dd{margin:2px 0 0;font-weight:700;overflow-wrap:anywhere}
+.desc{color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere;opacity:.9}
+.pcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.pcard{text-align:start;display:grid;gap:6px;padding:12px;align-items:start;justify-content:stretch}
+.pcard[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+.stages{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.stage{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;display:grid;gap:12px;align-content:start;border-top:3px solid var(--line-2)}
+.stage.progress{border-top-color:var(--warn)} .stage.done{border-top-color:var(--ok)}
+.stage header{display:flex;align-items:center;gap:10px}
+.stage header .badge{margin-inline-start:auto}
+.step{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;background:var(--input);border:1px solid var(--line);flex:none}
+.stage.done .step{color:var(--ok);border-color:var(--ok)} .stage.progress .step{color:var(--warn);border-color:var(--warn)}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.checks li{display:flex;gap:9px;align-items:flex-start;opacity:.85}
+.checks li .ico{margin-top:4px;color:var(--line-2)}
+.checks li.done{opacity:1}.checks li.done .ico{color:var(--ok)}
+.parts{display:grid;gap:8px}
+.part{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card-2)}
+.part .nm{overflow-wrap:anywhere;font-weight:600}
+@media (max-width:560px){.part{grid-template-columns:1fr auto}.part .when{grid-column:1/-1}}
+.pay{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.pay:last-child{border-bottom:0}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.state{max-width:520px;margin:8vh auto 0;text-align:center;display:grid;gap:14px;justify-items:center}
+.state .actions{justify-content:center}
+.spin{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.gate{max-width:380px;margin:8vh auto 0;text-align:center}
+.gate-icon{width:52px;height:52px;margin:0 auto;border-radius:14px;display:grid;place-items:center;color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent)}
+.gate-icon .ico svg{width:24px;height:24px}
+
+/* photos */
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.ph{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card-2);display:grid;align-content:start;min-width:0}
+.ph .imgbtn{padding:0;border:0;border-radius:0;background:var(--bg-2);aspect-ratio:4/3;display:block;width:100%}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph .cap{padding:6px 8px;font-size:12.5px;overflow-wrap:anywhere}
+.ph .cap small{display:block;color:var(--muted)}
+.ph-fail{display:grid;place-items:center;gap:4px;color:var(--muted);font-size:12px;padding:20px 8px;text-align:center}
+.ph .ctl{display:grid;gap:6px;padding:6px}
+dialog{color:var(--text)}
+dialog.dlg,dialog.lb{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:0;width:min(720px,94vw);max-height:92vh}
+dialog.lb{width:min(1000px,96vw)}
+dialog::backdrop{background:rgba(2,6,23,.75)}
+.dlg-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line)}
+.dlg-body{padding:18px;overflow:auto;max-height:calc(92vh - 60px);display:grid;gap:12px}
+.lb img{max-width:100%;max-height:68vh;object-fit:contain;display:block;margin:0 auto;border-radius:8px}
+.lb-nav{display:flex;justify-content:space-between;align-items:center;gap:10px}
+
+/* toasts */
+.toasts{position:fixed;inset-inline:0;bottom:16px;display:grid;justify-items:center;gap:8px;pointer-events:none;z-index:50}
+.toast{pointer-events:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;box-shadow:var(--shadow);max-width:90vw}
+.toast.bad{border-color:var(--bad)} .toast.ok{border-color:var(--ok)}
+
+/* tape-measure countdown: the one signature element */
+.tape-wrap{display:grid;gap:8px}
+.tape-head{display:flex;justify-content:space-between;align-items:baseline;gap:6px 16px;flex-wrap:wrap}
+.tape-big{font-size:clamp(24px,4.4vw,36px);font-weight:800;line-height:1.15;letter-spacing:-.01em}
+.tape{--tape:#f5c542;position:relative;height:40px;border-radius:6px;overflow:hidden;background-color:var(--tape);
+  background-image:repeating-linear-gradient(to right,#1c1917 0 1.5px,transparent 1.5px 8px),repeating-linear-gradient(to right,#1c1917 0 2px,transparent 2px 40px);
+  background-size:100% 30%,100% 56%;background-repeat:no-repeat;background-position:0 100%,0 100%;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.22),0 1px 0 var(--line)}
+[dir=rtl] .tape{background-image:repeating-linear-gradient(to left,#1c1917 0 1.5px,transparent 1.5px 8px),repeating-linear-gradient(to left,#1c1917 0 2px,transparent 2px 40px);background-position:100% 100%,100% 100%}
+.tape.late{--tape:#f87171}
+.tape.done{--tape:#4ade80}
+.tape-used{position:absolute;inset-block:0;inset-inline-start:0;background:color-mix(in srgb,var(--bg) 66%,transparent);transition:width .8s ease}
+.tape-now{position:absolute;inset-block:0;width:3px;margin-inline-start:-1.5px;background:var(--text);box-shadow:0 0 0 2px var(--tape)}
+.tape-ends{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;color:var(--muted)}
+
+/* misc */
+.bi{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media (max-width:560px){.bi{grid-template-columns:1fr}}
+.tablewrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{padding:8px 10px;text-align:start;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl th{font-size:12.5px;color:var(--muted);font-weight:600}
+.tbl tr:last-child td{border-bottom:0}
+.tbl td.n,.tbl th.n{text-align:end}
+details.card>summary{cursor:pointer;font-weight:700;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+details.card[open]>summary{margin-bottom:12px}
+.titleblock{display:grid;gap:6px}
+.titleblock h2{font-size:clamp(20px,3vw,26px)}
+.rowsep{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bar.thin{height:8px}
+.up{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ph .imgbtn:hover{filter:none;border:0}
+input[readonly]{opacity:.8}
+.pay .amt{font-weight:700;font-variant-numeric:tabular-nums}
+.pay .who{display:grid;gap:2px;min-width:0}
+/* shown by pure CSS after 8s, so it appears even if every script is blocked; the app replaces it once it starts */
+.slowhint{opacity:0;animation:slowfade .6s 8s forwards}
+@keyframes slowfade{to{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation-duration:.01ms!important}}
+</style>
+<!-- CryptoJS 4.2.0 is loaded by the start-up script above (cdnjs, then jsDelivr, then unpkg) so a slow CDN can never leave a blank page. -->
+<style>
+/* ---- brand ---- */
+.brand{text-decoration:none;color:var(--text)}
+.brandmark{display:inline-flex;align-items:center}
+.brandmark .mark,.logo-preview .mark{display:inline-flex}
+.mark svg{width:100%;height:100%;display:block}
+.brandimg{display:block;max-width:150px;object-fit:contain}
+.brand-name{font-weight:800;letter-spacing:.06em}
+.brand-sub{font-size:12px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:1px 9px}
+.center{text-align:center}
+.lead{font-size:16px;max-width:60ch;margin-inline:auto}
+
+/* ---- search landing ---- */
+.homehero{display:grid;gap:14px;text-align:center;justify-items:center;padding:clamp(22px,5vw,48px) clamp(16px,4vw,40px);
+  background:radial-gradient(600px 220px at 50% -20%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 70%),var(--card)}
+.homehero h1{font-size:clamp(26px,5vw,40px);letter-spacing:-.01em}
+.searchbox{position:relative;width:min(640px,100%)}
+.searchbox .si{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--muted);display:inline-flex;pointer-events:none}
+.searchbox .si svg{width:20px;height:20px}
+.bigsearch{font-size:clamp(16px,2.6vw,20px);padding:15px 18px;padding-left:48px;border-radius:16px;text-transform:uppercase;letter-spacing:.04em;border-width:2px}
+.bigsearch::placeholder{text-transform:none;letter-spacing:0}
+.live-out{width:min(640px,100%);min-height:44px;display:grid;gap:10px}
+.result{display:grid;gap:12px;text-align:start;background:var(--card-2);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.result.center{justify-items:center;text-align:center}
+.result.bad-soft{border-color:color-mix(in srgb,var(--warn) 45%,transparent);background:color-mix(in srgb,var(--warn) 8%,var(--card-2))}
+.result.found{border-color:color-mix(in srgb,var(--ok) 50%,transparent);background:color-mix(in srgb,var(--ok) 7%,var(--card-2))}
+.found-head{display:flex;gap:12px;align-items:center}
+.okdot{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:none;color:var(--ok);background:color-mix(in srgb,var(--ok) 16%,transparent)}
+.okdot svg{width:18px;height:18px}
+.keyform{display:grid;gap:12px}
+.keyform label{color:var(--text)}
+.keyform input{font-family:var(--mono);letter-spacing:.06em}
+.shake{animation:shake .35s}
+@keyframes shake{20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.step-card{display:grid;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.sn{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#fff;background:linear-gradient(135deg,#2563eb,#1d4ed8)}
+.contact{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.secure-note{display:flex;gap:8px;justify-content:center;align-items:center}
+
+/* ---- project link gate ---- */
+.gate-client{max-width:520px;margin:4vh auto 0;display:grid;gap:12px;justify-items:center;text-align:center}
+.gate-client .keyform{width:100%;text-align:start}
+.gate-client h1{font-size:clamp(22px,4vw,28px)}
+
+/* ---- portal ---- */
+.livebox{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.live{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:13px;color:var(--ok)}
+.live .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 60%,transparent);animation:pulse 2s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.proj-top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.ring{position:relative;width:84px;height:84px;flex:none;display:grid;place-items:center}
+.ring svg{position:absolute;inset:0}
+.ring .rb{fill:none;stroke:var(--line);stroke-width:8}
+.ring .rf{fill:none;stroke:var(--accent);stroke-width:8;stroke-linecap:round}
+.ring span{font-weight:800;font-size:16px}
+
+/* ---- rating ---- */
+.rate{display:grid;gap:14px;border-color:color-mix(in srgb,var(--warn) 45%,var(--line))}
+.rate-head{display:flex;gap:12px;align-items:center}
+.rate-head .okdot{color:var(--warn);background:color-mix(in srgb,var(--warn) 16%,transparent)}
+.scale{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px}
+.scale .sc{padding:12px 0;border-radius:10px;font-size:16px}
+.scale .sc.on{background:linear-gradient(135deg,#f59e0b,#d97706);border-color:#f59e0b;color:#1a1100}
+.scale-ends{display:flex;justify-content:space-between}
+@media (max-width:560px){.scale{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.score-big{display:flex;align-items:baseline;gap:8px}
+.score-big strong{font-size:44px;line-height:1}
+.scorebar{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}
+.scorebar i{height:8px;border-radius:4px;background:var(--line)}
+.scorebar i.on{background:var(--warn)}
+blockquote{margin:0;padding:10px 14px;border-inline-start:3px solid var(--warn);background:var(--card-2);border-radius:8px}
+
+.contact-slot:empty{display:none}
+
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="#" aria-label="DUSUR"><span class="brandmark" id="brandMark"></span><span class="brand-name" id="brandName">DUSUR</span></a>
+  <div class="tools">
+    <span class="secure-banner client-only" id="clientBanner"><span data-icon="lock"></span><span data-i18n="app.secureBanner"></span></span>
+    <button type="button" id="btnLang" class="small"></button>
+    <button type="button" id="btnTheme" class="small"></button>
+  </div>
+</header>
+
+<main id="app" tabindex="-1"><section class="card state"><div class="spin" role="progressbar" aria-label="Loading"></div><p class="muted">Loading… · جارٍ التحميل…</p><p class="muted small slowhint">Still blank? Scripts may be blocked here. Open this page in Chrome at its https:// GitHub Pages address (not inside a file viewer or preview). · لم تظهر شاشة؟ ربما تم حجب السكربتات هنا. افتح الصفحة من متصفح Chrome على عنوان https:// الخاص بـ GitHub Pages.</p></section></main>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px;text-align:center">JavaScript is required / يلزم تفعيل جافاسكربت</p></noscript>
+<script>
+window.__I18N = {"en":{"act.close":"Close","act.copied":"Copied","act.copy":"Copy","act.copyFail":"Copy failed","act.hide":"Hide","act.loading":"Loading…","act.next":"Next","act.prev":"Previous","act.refresh":"Refresh","act.retry":"Try again","act.show":"Show","app.secureBanner":"Secure client portal · AES-256 encrypted","badge.enc":"AES-256 Encrypted","boot.loadingLib":"Loading the encryption library…","boot.loadingLibText":"Fetching CryptoJS from a CDN. This can take a few seconds on a slow connection.","boot.noLib":"Encryption library not loaded","boot.noLibText":"The encryption library (CryptoJS) could not be loaded from any of the three CDNs (cdnjs, jsDelivr, unpkg). Check your connection or ad-blocker and reload.","boot.noSecure":"Secure connection required","boot.noSecureText":"This page needs HTTPS (or localhost) so the browser can use its cryptography features.","cl.badFormat":"The project file is not in the expected format.","cl.badLinkText":"This portal link is not valid. Please check the link you were sent.","cl.badLinkTitle":"Invalid link","cl.clientId":"Client ID","cl.denied":"Access Denied","cl.deniedText":"Invalid Passcode. The key you entered does not open this project. Check for typos and try again.","cl.docTitle":"Client Portal","cl.due":"Due","cl.footnote":"Decrypted in your browser. Your key is never sent anywhere.","cl.loadFail":"Unable to load project","cl.loadingText":"Fetching your encrypted project file.","cl.lock":"Lock & close","cl.money":"Payments","cl.network":"Could not reach the server. Check your connection and try again.","cl.noPayments":"No payments recorded yet.","cl.noProjects":"No projects yet.","cl.noRepoText":"This page could not work out which repository holds your project. Please open the link on its original GitHub Pages address.","cl.noRepoTitle":"Portal not available","cl.notFound":"This project could not be found. The link may be incorrect or no longer active.","cl.parts":"Furniture parts & pieces","cl.passTitle":"Passcode required","cl.photos":"Progress photos","cl.progress":"Overall progress","cl.projects":"Projects","cl.serverErr":"The server returned an error ({s}). Please try again later.","cl.stages":"Production stages","cl.start":"Start","cl.tasksDone":"{a} of {b} tasks done","cl.timeLeft":"Time remaining","cl.timeUsed":"{p}% of the time has passed","cl.updated":"Last updated","cl.yourProject":"Your project","ed.done":"done","ed.partsSummary":"{a} of {b} pieces completed","fin.paid":"Paid","fin.price":"Contract price","fin.remaining":"Remaining","ph.failed":"Image unavailable","ph.openOriginal":"Open original","ph.title":"Photo","ph.view":"View photo","st.done":"Completed","st.pending":"Pending","st.progress":"In progress","time.done":"Completed","time.left":"{d} left","time.noDate":"No due date","time.overdue":"Overdue by {d}","time.today":"Due today","tools.lang":"Language","tools.theme":"Switch theme","home.eyebrow":"Client portal","home.title":"Follow your project, live","home.sub":"Enter your Client ID or project number to see progress, time left and payments. Your data stays encrypted until you enter your secret key.","home.label":"Client ID or project number","home.ph":"e.g. DS-CL-1001 or DS-KIT-2610-0001","home.hint":"Your Client ID and project number are on your quotation and in the message we sent you.","home.format":"That does not look like a Client ID or project number yet. Example: DS-CL-1001","home.searching":"Searching…","home.none":"No project found","home.noneText":"We could not find “{q}”. Check the number on your quotation or message, or contact us.","home.found":"Project found","home.foundSku":"Project {sku} is in client file {id}.","home.foundId":"Client file {id}","home.error":"Could not search right now. Check your connection and try again.","home.how":"How it works","home.s1":"Find your project","home.s1d":"Type your Client ID or project number in the search box.","home.s2":"Enter your secret key","home.s2d":"It is in the message we sent you. Only you can open your project.","home.s3":"Follow it live","home.s3d":"See stages, parts, photos, time left and your balance. The page updates by itself.","home.secure":"Everything is decrypted inside your browser. Your key is never sent anywhere.","key.label":"Secret key","key.open":"Open my project","key.opening":"Checking…","cl.passHead":"Open your project","cl.passText2":"Enter the secret key we gave you. Only you can open this project.","cl.searchAgain":"Search another project","cl.hello":"Hello, {name}","cl.live":"Live","cl.checked":"Checked {t}","cl.changed":"Your project was just updated.","cl.upToDate":"Your project is up to date.","cl.help":"Questions about your project?","cl.whatsapp":"WhatsApp","cl.call":"Call","cl.email":"Email","rate.title":"How did we do?","rate.sub":"Rate our work from 1 to 10 and leave a comment. It takes a minute.","rate.low":"Poor","rate.high":"Excellent","rate.score":"{n} out of 10","rate.comment":"Your comment (optional)","rate.commentPh":"What went well? What could we do better?","rate.submit":"Prepare my rating","rate.needScore":"Choose a score from 1 to 10.","rate.sendTitle":"One last step: send us your rating","rate.sendText":"Your rating is ready. Send it to us by WhatsApp or email, or copy it and send it any way you like.","rate.copy":"Copy rating","rate.change":"Change my rating","rate.noContact":"Copy the rating and send it to us any way you like.","rate.privacy":"Your comment is encrypted with your secret key. Only {b} can read it.","rate.msgIntro":"{b} — my rating for project {sku}: {n}/10. The code below contains my comment, please keep it.","rate.mailSubject":"Rating for project {sku}","rate.thanks":"Thank you for your feedback!","rate.yours":"Your rating"},"ar":{"act.close":"إغلاق","act.copied":"تم النسخ","act.copy":"نسخ","act.copyFail":"تعذّر النسخ","act.hide":"إخفاء","act.loading":"جارٍ التحميل…","act.next":"التالي","act.prev":"السابق","act.refresh":"تحديث","act.retry":"حاول مرة أخرى","act.show":"إظهار","app.secureBanner":"بوابة العميل الآمنة · مشفّرة AES-256","badge.enc":"مشفّر AES-256","boot.loadingLib":"جارٍ تحميل مكتبة التشفير…","boot.loadingLibText":"يجري جلب CryptoJS من الشبكة. قد يستغرق ذلك بضع ثوانٍ مع الاتصال البطيء.","boot.noLib":"مكتبة التشفير لم تُحمَّل","boot.noLibText":"تعذّر تحميل مكتبة التشفير (CryptoJS) من أي من الشبكات الثلاث (cdnjs وjsDelivr وunpkg). تأكد من الاتصال أو من إضافة حجب الإعلانات ثم أعد تحميل الصفحة.","boot.noSecure":"يلزم اتصال آمن","boot.noSecureText":"تحتاج هذه الصفحة إلى HTTPS (أو localhost) حتى يتمكن المتصفح من استخدام خصائص التشفير.","cl.badFormat":"ملف المشروع ليس بالصيغة المتوقعة.","cl.badLinkText":"رابط البوابة هذا غير صالح. يرجى مراجعة الرابط الذي وصلك.","cl.badLinkTitle":"رابط غير صالح","cl.clientId":"رقم العميل","cl.denied":"تم رفض الدخول","cl.deniedText":"رمز الدخول غير صحيح (Invalid Passcode). المفتاح الذي أدخلته لا يفتح هذا المشروع. راجع الإملاء وحاول مرة أخرى.","cl.docTitle":"بوابة العميل","cl.due":"التسليم","cl.footnote":"يُفكّ التشفير داخل متصفحك. مفتاحك لا يُرسَل إلى أي جهة.","cl.loadFail":"تعذّر تحميل المشروع","cl.loadingText":"جارٍ جلب ملف مشروعك المشفّر.","cl.lock":"قفل وإغلاق","cl.money":"المدفوعات","cl.network":"تعذّر الوصول إلى الخادم. تأكد من اتصالك بالإنترنت وحاول مرة أخرى.","cl.noPayments":"لا توجد مدفوعات مسجّلة بعد.","cl.noProjects":"لا توجد مشروعات بعد.","cl.noRepoText":"تعذّر على هذه الصفحة تحديد المستودع الذي يحتوي مشروعك. يرجى فتح الرابط من عنوان GitHub Pages الأصلي.","cl.noRepoTitle":"البوابة غير متاحة","cl.notFound":"لم يتم العثور على هذا المشروع. ربما الرابط غير صحيح أو لم يعد فعّالًا.","cl.parts":"قطع وأجزاء الأثاث","cl.passTitle":"رمز الدخول مطلوب","cl.photos":"صور التقدم","cl.progress":"نسبة الإنجاز الكلية","cl.projects":"المشروعات","cl.serverErr":"أعاد الخادم خطأ ({s}). يرجى المحاولة لاحقًا.","cl.stages":"مراحل الإنتاج","cl.start":"البدء","cl.tasksDone":"تم إنجاز {a} من {b} مهمة","cl.timeLeft":"الوقت المتبقي","cl.timeUsed":"مضى {p}% من المدة","cl.updated":"آخر تحديث","cl.yourProject":"مشروعك","ed.done":"تم","ed.partsSummary":"اكتمل {a} من {b} قطعة","fin.paid":"المدفوع","fin.price":"سعر التعاقد","fin.remaining":"المتبقي","ph.failed":"الصورة غير متاحة","ph.openOriginal":"فتح الأصل","ph.title":"صورة","ph.view":"عرض الصورة","st.done":"مكتمل","st.pending":"قيد الانتظار","st.progress":"جارٍ التنفيذ","time.done":"مكتمل","time.left":"متبقي {d}","time.noDate":"بدون موعد","time.overdue":"متأخر {d}","time.today":"التسليم اليوم","tools.lang":"اللغة","tools.theme":"تبديل المظهر","home.eyebrow":"بوابة العملاء","home.title":"تابع مشروعك لحظة بلحظة","home.sub":"اكتب رقم العميل أو رقم المشروع لتشاهد التقدم والوقت المتبقي والمدفوعات. تبقى بياناتك مشفّرة حتى تدخل مفتاحك السري.","home.label":"رقم العميل أو رقم المشروع","home.ph":"مثال: DS-CL-1001 أو DS-KIT-2610-0001","home.hint":"رقم العميل ورقم المشروع موجودان في عرض السعر وفي الرسالة التي أرسلناها لك.","home.format":"هذا لا يشبه رقم عميل أو رقم مشروع بعد. مثال: DS-CL-1001","home.searching":"جارٍ البحث…","home.none":"لم يتم العثور على مشروع","home.noneText":"لم نجد «{q}». راجع الرقم في عرض السعر أو الرسالة، أو تواصل معنا.","home.found":"تم العثور على المشروع","home.foundSku":"المشروع {sku} ضمن ملف العميل {id}.","home.foundId":"ملف العميل {id}","home.error":"تعذّر البحث الآن. تأكد من الاتصال وحاول مرة أخرى.","home.how":"كيف تعمل البوابة","home.s1":"ابحث عن مشروعك","home.s1d":"اكتب رقم العميل أو رقم المشروع في مربع البحث.","home.s2":"أدخل مفتاحك السري","home.s2d":"هو في الرسالة التي أرسلناها لك. أنت وحدك من يفتح مشروعك.","home.s3":"تابعه مباشرة","home.s3d":"شاهد المراحل والقطع والصور والوقت المتبقي ومتبقي المبلغ. تتحدث الصفحة تلقائيًا.","home.secure":"يُفكّ كل شيء داخل متصفحك. مفتاحك لا يُرسَل إلى أي جهة.","key.label":"المفتاح السري","key.open":"افتح مشروعي","key.opening":"جارٍ التحقق…","cl.passHead":"افتح مشروعك","cl.passText2":"أدخل المفتاح السري الذي سلّمناه لك. أنت وحدك من يفتح هذا المشروع.","cl.searchAgain":"ابحث عن مشروع آخر","cl.hello":"أهلًا {name}","cl.live":"مباشر","cl.checked":"آخر فحص {t}","cl.changed":"تم تحديث مشروعك للتو.","cl.upToDate":"مشروعك محدّث.","cl.help":"هل لديك أسئلة عن مشروعك؟","cl.whatsapp":"واتساب","cl.call":"اتصال","cl.email":"بريد إلكتروني","rate.title":"كيف كان أداؤنا؟","rate.sub":"قيّم عملنا من 1 إلى 10 واترك تعليقًا. لن يستغرق أكثر من دقيقة.","rate.low":"ضعيف","rate.high":"ممتاز","rate.score":"{n} من 10","rate.comment":"تعليقك (اختياري)","rate.commentPh":"ما الذي أعجبك؟ وما الذي يمكن أن نحسّنه؟","rate.submit":"جهّز تقييمي","rate.needScore":"اختر درجة من 1 إلى 10.","rate.sendTitle":"خطوة أخيرة: أرسل لنا تقييمك","rate.sendText":"تقييمك جاهز. أرسله لنا عبر واتساب أو البريد الإلكتروني، أو انسخه وأرسله بأي طريقة تناسبك.","rate.copy":"نسخ التقييم","rate.change":"تغيير تقييمي","rate.noContact":"انسخ التقييم وأرسله لنا بأي طريقة تناسبك.","rate.privacy":"تعليقك مشفّر بمفتاحك السري. {b} وحدها تستطيع قراءته.","rate.msgIntro":"{b} — تقييمي للمشروع {sku}: {n}/10. الرمز التالي يحوي تعليقي، يرجى الاحتفاظ به.","rate.mailSubject":"تقييم المشروع {sku}","rate.thanks":"شكرًا لك على رأيك!","rate.yours":"تقييمك"}};
+</script>
+<script>
+(() => {
+'use strict';
+const I18N = window.__I18N;
+
+/* =====================================================================
+   Constants
+   ===================================================================== */
+const SCHEMA = 'dscl/2', PRIV = 'dscl-priv/2';
+const MIN_SECRET = 10, MIN_ADMIN_PW = 10, PBKDF2_ITERS = 310000;
+const LS_LANG = 'dsp.lang', LS_THEME = 'dsp.theme';
+const ID_RE = /^[A-Za-z0-9_-]{3,40}$/;
+const STATUS = [['pending', 'st.pending', 'pending'], ['in_progress', 'st.progress', 'progress'], ['completed', 'st.done', 'done']];
+const statusInfo = (s) => STATUS.find((x) => x[0] === s) || STATUS[0];
+const COST_CATS = ['materials', 'hardware', 'labor', 'outsourced', 'delivery', 'installation', 'other'];
+
+// Shared mutable state (declared here so lock() can reset it)
+let session = null;      // { key, pat, pw, master, settings }
+let idleTimer = null, masterP = null, routeToken = 0;
+let ed = null;           // admin editor state
+let store = null;        // dashboard cache
+let cstate = null;       // client portal state
+let draftTypes = null;   // settings editor draft
+
+/* =====================================================================
+   Language, formatting
+   ===================================================================== */
+const ls = {
+  get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (_) { /* ignore */ } },
+};
+let lang = document.documentElement.lang === 'ar' ? 'ar' : 'en';
+const t = (key, vars) => {
+  let s = I18N[lang][key];
+  if (s === undefined) s = I18N.en[key];
+  if (s === undefined) { console.warn('i18n missing: ' + key); return key; }
+  return vars ? s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m)) : s;
+};
+const L = (v) => (v && typeof v === 'object' ? (v[lang] || v.en || v.ar || '') : (v == null ? '' : String(v)));
+const locale = () => (lang === 'ar' ? 'ar-EG-u-nu-latn' : 'en-GB');
+let CUR = 'EGP';
+const nf = (n, o) => new Intl.NumberFormat(locale(), o).format(n);
+const money = (n) => { try { return nf(n, { style: 'currency', currency: CUR, maximumFractionDigits: 2 }); } catch (_) { return nf(n, { maximumFractionDigits: 2 }) + ' ' + CUR; } };
+const pct = (x) => (x == null || !isFinite(x) ? '—' : nf(x * 100, { maximumFractionDigits: 1 }) + '%');
+const pad2 = (n) => String(n).padStart(2, '0');
+const parseDay = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); };
+const fmtDay = (s) => { const d = parseDay(s); return d ? d.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; };
+const fmtDateTime = (iso) => { const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }); };
+const daysUntil = (s) => { const d = parseDay(s); if (!d) return null; const n = new Date(); return Math.round((d - new Date(n.getFullYear(), n.getMonth(), n.getDate())) / 864e5); };
+const dayWord = (n) => (lang === 'ar'
+  ? (n === 1 ? 'يوم واحد' : n === 2 ? 'يومان' : n <= 10 ? nf(n) + ' أيام' : nf(n) + ' يومًا')
+  : (n === 1 ? '1 day' : nf(n) + ' days'));
+const timeLeft = (n) => (n === null ? '—' : n > 0 ? t('time.left', { d: dayWord(n) }) : n === 0 ? t('time.today') : t('time.overdue', { d: dayWord(-n) }));
+
+/* =====================================================================
+   DOM helpers
+   ===================================================================== */
+const $ = (sel, root = document) => root.querySelector(sel);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const clone = (o) => JSON.parse(JSON.stringify(o));
+
+// Children are always text nodes or elements, never parsed as HTML.
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  let val;
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === false || v == null) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'value') val = v;
+    else if (k === 'checked') e.checked = !!v;
+    else if (k.slice(0, 2) === 'on' && typeof v === 'function') e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? '' : String(v));
+  }
+  for (const kid of kids.flat(Infinity)) {
+    if (kid == null || kid === false) continue;
+    e.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  if (val !== undefined) e.value = val;
+  return e;
+}
+const SVG = (p) => '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>';
+const ICONS = {
+  lock: SVG('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+  check: SVG('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+  circle: SVG('<circle cx="12" cy="12" r="8"/>'),
+  logo: SVG('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>'),
+  alert: SVG('<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/>'),
+  sun: SVG('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+  moon: SVG('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'),
+  image: SVG('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-8 8"/>'),
+};
+const icon = (name) => { const s = h('span', { class: 'ico', 'aria-hidden': 'true' }); s.innerHTML = ICONS[name]; return s; };
+const hydrate = (root) => root.querySelectorAll('[data-icon]').forEach((n) => n.prepend(icon(n.dataset.icon)));
+const applyStatic = () => document.querySelectorAll('[data-i18n]').forEach((n) => { n.textContent = t(n.dataset.i18n); });
+const encBadge = (label) => h('span', { class: 'badge enc' }, icon('lock'), label || t('badge.enc'));
+const mount = (...nodes) => $('#app').replaceChildren(...nodes);
+
+function toast(text, kind) {
+  const el = h('div', { class: 'toast ' + (kind || '') }, text);
+  $('#toasts').append(el);
+  setTimeout(() => el.remove(), kind === 'bad' ? 7000 : 3000);
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* fall through */ }
+  const ta = h('textarea', { 'aria-hidden': 'true', style: 'position:fixed;opacity:0;top:0' });
+  ta.value = text; document.body.append(ta); ta.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch (_) { /* ignore */ }
+  ta.remove(); return ok;
+}
+function flash(btn, text) {
+  const old = btn.textContent; btn.textContent = text; btn.disabled = true;
+  setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 1400);
+}
+function copyBtn(textFn, cls) {
+  const b = h('button', { class: cls || 'small', type: 'button' }, t('act.copy'));
+  b.onclick = async () => flash(b, (await copyText(textFn())) ? t('act.copied') : t('act.copyFail'));
+  return b;
+}
+function notice(title, text, kind, opts) {
+  const o = opts || {};
+  return h('section', { class: 'card state' },
+    o.spinner ? h('div', { class: 'spin', role: 'progressbar', 'aria-label': t('act.loading') }) : null,
+    kind === 'bad' ? h('span', { class: 'badge late' }, icon('alert'), title) : h('h1', {}, title),
+    h('p', { class: 'muted' }, text),
+    o.actions && o.actions.length ? h('div', { class: 'actions' }, o.actions) : null);
+}
+function fld(labelKey, el, hintKey) { return h('label', {}, t(labelKey), el, hintKey ? h('span', { class: 'hint' }, t(hintKey)) : null); }
+
+// keep typed text when the language is switched on a form screen
+function snapshotInputs() {
+  const out = {};
+  document.querySelectorAll('#app [id]').forEach((n) => { if ('value' in n && n.id) out[n.id] = n.type === 'checkbox' ? n.checked : n.value; });
+  return out;
+}
+function restoreInputs(s) {
+  Object.entries(s).forEach(([id, v]) => { const n = document.getElementById(id); if (!n) return; if (n.type === 'checkbox') n.checked = v; else n.value = v; });
+}
+
+function syncTools() {
+  const b = $('#btnLang'); b.textContent = lang === 'ar' ? 'English' : 'العربية'; b.title = t('tools.lang');
+  const th = document.documentElement.getAttribute('data-theme');
+  const tb = $('#btnTheme'); tb.replaceChildren(icon(th === 'dark' ? 'sun' : 'moon'), h('span', { class: 'sr' }, t('tools.theme')));
+  tb.title = t('tools.theme');
+}
+function setTheme(th) { document.documentElement.setAttribute('data-theme', th); ls.set(LS_THEME, th); syncTools(); }
+function setLang(l) {
+  lang = l; const d = document.documentElement; d.lang = l; d.dir = l === 'ar' ? 'rtl' : 'ltr';
+  ls.set(LS_LANG, l); applyStatic(); syncTools();
+  const snap = snapshotInputs();
+  route({ keep: true }).then(() => restoreInputs(snap));
+}
+
+/* =====================================================================
+   Bytes & crypto
+   ===================================================================== */
+const enc = new TextEncoder(), dec = new TextDecoder();
+const bytesToB64 = (bytes) => { let s = ''; const CH = 0x8000; for (let i = 0; i < bytes.length; i += CH) s += String.fromCharCode.apply(null, bytes.subarray(i, i + CH)); return btoa(s); };
+const b64ToBytes = (b64) => Uint8Array.from(atob(String(b64).replace(/\s+/g, '')), (c) => c.charCodeAt(0));
+const textToB64 = (s) => bytesToB64(enc.encode(s));
+const b64ToText = (b) => dec.decode(b64ToBytes(b));
+const rand = (n) => crypto.getRandomValues(new Uint8Array(n));
+const hex = (u8) => Array.from(u8, (b) => b.toString(16).padStart(2, '0')).join('');
+const normSecret = (s) => String(s == null ? '' : s).normalize('NFKC').trim();
+async function pbkdf2Bits(secret, salt) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(secret), 'PBKDF2', false, ['deriveBits']);
+  return crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF2_ITERS }, base, 256);
+}
+// Client snapshot: AES-256 via CryptoJS; the key is stretched with PBKDF2 (salted by the client id) first.
+async function clientPassphrase(secret, id) { return hex(new Uint8Array(await pbkdf2Bits(normSecret(secret), enc.encode('dscl-v1:' + id)))); }
+async function decryptRecord(cipher, secret, id) {
+  try {
+    if (!normSecret(secret)) return null;
+    const text = CryptoJS.AES.decrypt(String(cipher), await clientPassphrase(secret, id)).toString(CryptoJS.enc.Utf8);
+    if (!text) return null;
+    const rec = JSON.parse(text);
+    return rec && /^dscl\/[12]$/.test(rec.schema) && rec.id === id ? rec : null;
+  } catch (_) { return null; }
+}
+// Photos: AES-256-GCM, separate key derivation from the same client secret.
+const imgKeys = new Map();
+async function imageKey(secret, cid) {
+  const k = cid + '|' + secret;
+  if (!imgKeys.has(k)) imgKeys.set(k, crypto.subtle.importKey('raw', await pbkdf2Bits(normSecret(secret), enc.encode('dscl-img-v1:' + cid)), 'AES-GCM', false, ['encrypt', 'decrypt']));
+  return imgKeys.get(k);
+}
+const openBytes = async (key, bytes) => new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(0, 12) }, key, bytes.slice(12)));
+
+/* =====================================================================
+   Domain: project types, settings, money, progress
+   ===================================================================== */
+const num = (v) => { const n = Number(v); return isFinite(n) ? n : 0; };
+const sum = (arr, f) => (arr || []).reduce((a, x) => a + num(f(x)), 0);
+
+// Finance: revenue = contract price; COGS = direct costs; opex = operating costs.
+function finance(p) {
+  const price = num(p.price), paid = sum(p.payments, (x) => x.amount);
+  const cogs = sum((p.costs || []).filter((c) => c.type !== 'opex'), (c) => c.amount);
+  const opex = sum((p.costs || []).filter((c) => c.type === 'opex'), (c) => c.amount);
+  return fin2(price, paid, cogs, opex);
+}
+function fin2(price, paid, cogs, opex) {
+  const gross = price - cogs, net = gross - opex;
+  return { price, paid, remaining: price - paid, cogs, opex, gross, net,
+    grossMargin: price ? gross / price : null, netMargin: price ? net / price : null, markup: cogs ? gross / cogs : null, collected: price ? paid / price : null };
+}
+function finTotals(projects) {
+  const a = projects.map(finance);
+  return fin2(sum(a, (x) => x.price), sum(a, (x) => x.paid), sum(a, (x) => x.cogs), sum(a, (x) => x.opex));
+}
+function progress(p) {
+  let done = 0, total = 0;
+  for (const s of p.stages || []) {
+    const items = s.checklist || [];
+    if (items.length) { total += items.length; done += items.filter((i) => i.done).length; } else { total += 1; done += s.status === 'completed' ? 1 : 0; }
+  }
+  return total ? done / total : 0;
+}
+function projState(p) {
+  const pr = progress(p);
+  if (pr >= 1 && (p.stages || []).length) return 'completed';
+  return pr > 0 || (p.stages || []).some((s) => s.status !== 'pending') ? 'in_progress' : 'pending';
+}
+
+function upgradePublic(r) {
+  if (r.schema === SCHEMA) return r;
+  return { schema: SCHEMA, id: r.id, name: r.name, phone: r.phone, currency: 'EGP', createdAt: r.createdAt, updatedAt: r.updatedAt,
+    projects: [{ sku: r.id, type: '', typeName: '', title: r.description || r.name, description: r.description || '', startDate: '', dueDate: '', price: 0, payments: [], stages: r.stages || [], parts: [], photos: [] }] };
+}
+const imgUrls = new Map();
+let imgGen = 0;                  // bumps when the cache is cleared, so photos requested by a view that is gone are not shown
+function clearImages() { imgGen++; imgUrls.forEach((p) => p.then((u) => { if (/^blob:/.test(u)) URL.revokeObjectURL(u); }, () => {})); imgUrls.clear(); }
+// ctx = { cid, secret, where: {user, repo} }
+function photoUrl(ctx, ph, variant) {
+  if (ph.kind === 'link') return Promise.resolve(ph.url);
+  const k = ctx.cid + '/' + ph.id + '.' + variant;
+  if (!imgUrls.has(k)) {
+    imgUrls.set(k, (async () => {
+      const res = await fetch('https://raw.githubusercontent.com/' + encodeURIComponent(ctx.where.user) + '/' + encodeURIComponent(ctx.where.repo) + '/HEAD/data/clients/' + encodeURIComponent(ctx.cid) + '/' + encodeURIComponent(ph.id) + '.' + variant);
+      if (!res.ok) throw new Error('img ' + res.status);
+      const bytes = await openBytes(await imageKey(ctx.secret, ctx.cid), new Uint8Array(await res.arrayBuffer()));
+      return URL.createObjectURL(new Blob([bytes], { type: 'image/jpeg' }));
+    })().catch((e) => { imgUrls.delete(k); throw e; }));
+  }
+  return imgUrls.get(k);
+}
+function photoImg(ctx, ph, variant) {
+  const img = h('img', { alt: ph.caption || '', decoding: 'async', referrerpolicy: 'no-referrer' });
+  const fail = () => img.replaceWith(h('span', { class: 'ph-fail' }, icon('image'), t('ph.failed')));
+  img.addEventListener('error', fail);
+  const gen = imgGen;
+  photoUrl(ctx, ph, variant).then((u) => { if (gen === imgGen) img.src = u; }, fail);
+  return img;
+}
+function openLightbox(ctx, photos, start) {
+  let i = start;
+  const body = h('div', { class: 'dlg-body' });
+  const dlg = h('dialog', { class: 'lb', 'aria-label': t('ph.title') }, h('div', { class: 'dlg-head' }, h('strong', {}, t('ph.title')), h('button', { class: 'small ghost', type: 'button', onclick: () => dlg.close() }, t('act.close'))), body);
+  const draw = () => {
+    const ph = photos[i];
+    const prev = h('button', { class: 'small', type: 'button', onclick: () => { i = (i - 1 + photos.length) % photos.length; draw(); } }, t('act.prev'));
+    const next = h('button', { class: 'small', type: 'button', onclick: () => { i = (i + 1) % photos.length; draw(); } }, t('act.next'));
+    body.replaceChildren(photoImg(ctx, ph, 'f'),
+      h('p', { class: 'small', dir: 'auto' }, ph.caption || '', ph.date ? h('span', { class: 'muted' }, (ph.caption ? ' · ' : '') + fmtDay(ph.date)) : null),
+      ph.kind === 'link' ? h('a', { class: 'small', href: ph.url, target: '_blank', rel: 'noopener noreferrer' }, t('ph.openOriginal')) : null,
+      photos.length > 1 ? h('div', { class: 'lb-nav' }, prev, h('span', { class: 'muted small' }, nf(i + 1) + ' / ' + nf(photos.length)), next) : null);
+  };
+  dlg.addEventListener('close', () => dlg.remove());
+  document.body.append(dlg); draw(); dlg.showModal();
+}
+
+/* =====================================================================
+   Brand: DUSUR logo, public company profile (data/public/brand.json), contact links
+   ===================================================================== */
+const LOGO_MARK = '<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="48" height="48" rx="11" fill="#1c5cab"/><path fill="#fff" fill-rule="evenodd" d="M15 11h9.6c7.6 0 12.4 5 12.4 13s-4.8 13-12.4 13H15zm6.2 6v14h3.3c4 0 6.3-2.7 6.3-7s-2.3-7-6.3-7z"/><rect x="9" y="22" width="14" height="4.4" rx="2.2" fill="#eb6834"/></svg>';
+const LOGO_FULL = (name) => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 56" width="250" height="56"><rect x="4" y="4" width="48" height="48" rx="11" fill="#1c5cab"/><path fill="#fff" fill-rule="evenodd" d="M19 15h9.6c7.6 0 12.4 5 12.4 13s-4.8 13-12.4 13H19zm6.2 6v14h3.3c4 0 6.3-2.7 6.3-7s-2.3-7-6.3-7z"/><rect x="13" y="26" width="14" height="4.4" rx="2.2" fill="#eb6834"/><text x="64" y="38" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="30" font-weight="800" letter-spacing="3" fill="#0d366b">' +
+  String(name).replace(/[<>&"]/g, '') + '</text></svg>';
+
+const BRAND_DEFAULT = () => ({ name: { en: 'DUSUR', ar: 'DUSUR' }, tagline: { en: '', ar: '' }, phone: '', whatsapp: '', email: '', website: '', address: '', logo: '', rating: true });
+let brand = BRAND_DEFAULT();
+
+// Everything that is published in brand.json (and shown to clients) goes through this whitelist.
+function sanitizeBrand(j) {
+  const d = BRAND_DEFAULT(), s = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
+  const bi = (o, dflt) => ({ en: s(o && o.en, 80) || dflt.en, ar: s(o && o.ar, 80) || dflt.ar });
+  j = j && typeof j === 'object' ? j : {};
+  const logo = s(j.logo, 220000);
+  return {
+    name: bi(j.name, d.name), tagline: { en: s(j.tagline && j.tagline.en, 120), ar: s(j.tagline && j.tagline.ar, 120) },
+    phone: s(j.phone, 30).replace(/[^\d+\s()-]/g, ''), whatsapp: s(j.whatsapp, 20).replace(/\D/g, ''),
+    email: /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(s(j.email, 120)) ? s(j.email, 120) : '',
+    website: /^https:\/\/[^\s<>"]+$/i.test(s(j.website, 200)) ? s(j.website, 200) : '',
+    address: s(j.address, 200),
+    logo: /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(logo) ? logo : '',
+    rating: j.rating !== false,
+  };
+}
+const brandName = () => L(brand.name) || 'DUSUR';
+function brandMarkNode(size) {
+  if (brand.logo) return h('img', { class: 'brandimg', src: brand.logo, alt: brandName(), style: 'height:' + size + 'px' });
+  const s = h('span', { class: 'mark', 'aria-hidden': 'true', style: 'width:' + size + 'px;height:' + size + 'px' }); s.innerHTML = LOGO_MARK; return s;
+}
+function applyBrand() {
+  const m = $('#brandMark'); if (m) m.replaceChildren(brandMarkNode(34));
+  const n = $('#brandName'); if (n) n.textContent = brandName();
+}
+const rawUrl = (where, path) => 'https://raw.githubusercontent.com/' + encodeURIComponent(where.user) + '/' + encodeURIComponent(where.repo) + '/HEAD/' + path.split('/').map(encodeURIComponent).join('/');
+
+// Contact links (client site + feedback delivery)
+const waLink = (num, text) => 'https://wa.me/' + String(num).replace(/\D/g, '') + (text ? '?text=' + encodeURIComponent(text) : '');
+const telLink = (num) => 'tel:' + String(num).replace(/[^\d+]/g, '');
+const mailLink = (to, subject, body) => 'mailto:' + to + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+
+// Live search by SKU: the public index only stores a one-way hash of each SKU next to its client id.
+async function skuKey(sku) {
+  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode('dscl-sku-v1:' + String(sku).trim().toUpperCase())));
+  return hex(d).slice(0, 16);
+}
+
+// More icons for the client site
+Object.assign(ICONS, {
+  search: SVG('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
+  phone: SVG('<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>'),
+  mail: SVG('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>'),
+  chat: SVG('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"/>'),
+  star: SVG('<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>'),
+  refresh: SVG('<path d="M20 11a8 8 0 0 0-14-4L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4l2-2M20 20v-5h-5"/>'),
+  shield: SVG('<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2.2 2.2L15.5 10"/>'),
+  key: SVG('<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3"/>'),
+});
+
+// Rating pipeline: the client's rating travels as an encrypted code, readable only with that client's secret key.
+const FB_PREFIX = 'DSFB1.';
+const b64url = (b) => b.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64url = (s) => { s = String(s).replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return s; };
+async function makeFeedbackCode(fb, secret, id) {
+  const body = { v: 1, id, sku: fb.sku, score: fb.score, comment: fb.comment, at: new Date().toISOString() };
+  const cipher = CryptoJS.AES.encrypt(JSON.stringify(body), await clientPassphrase(secret, id)).toString();
+  return FB_PREFIX + id + '.' + b64url(cipher);
+}
+async function readFeedbackCode(code, secret) {
+  const m = /^DSFB1\.([A-Za-z0-9_-]{3,40})\.([A-Za-z0-9_-]+)$/.exec(String(code).trim());
+  if (!m) return null;
+  try {
+    const o = JSON.parse(CryptoJS.AES.decrypt(unb64url(m[2]), await clientPassphrase(secret, m[1])).toString(CryptoJS.enc.Utf8));
+    return o && o.v === 1 && o.id === m[1] && Number.isInteger(o.score) && o.score >= 1 && o.score <= 10 ? o : null;
+  } catch (_) { return null; }
+}
+
+/* =====================================================================
+   Shared UI bits
+   ===================================================================== */
+const noop = () => {};
+const statusOptions = () => STATUS.map(([v, k]) => [v, t(k)]);
+const statusBadge = (s) => { const i = statusInfo(s); return h('span', { class: 'badge ' + i[2] }, t(i[1])); };
+function timeBadge(due, done) {
+  if (done) return document.createTextNode('');                  // the status badge already says Completed
+  const n = daysUntil(due);
+  if (n === null) return h('span', { class: 'badge pending' }, t('time.noDate'));
+  return h('span', { class: 'badge ' + (n < 0 ? 'late' : n <= 7 ? 'progress' : 'done') }, timeLeft(n));
+}
+const kpi = (label, value, cls, sub) => h('div', { class: 'kpi ' + (cls || '') }, h('div', { class: 'l' }, label), h('div', { class: 'v' }, value), sub ? h('div', { class: 'sub' }, sub) : null);
+const kpis = (...tiles) => { const f = tiles.flat().filter(Boolean); return h('div', { class: 'kpis', style: '--n:' + Math.min(4, f.length) }, f); };
+const profitCls = (x) => (x > 0 ? 'pos' : x < 0 ? 'neg' : '');
+const barFill = (x, cls) => h('div', { class: 'bar thin ' + (cls || '') }, h('i', { style: 'width:' + Math.round(Math.max(0, Math.min(1, x || 0)) * 100) + '%' }));
+
+/* =====================================================================
+   CLIENT SITE
+   home (live search) -> #client/<id> (secret key) -> project portal (+ rating after completion)
+   ===================================================================== */
+let home = { q: '', st: 'idle', id: '', sku: '', cipher: null, fails: 0, err: false, busy: false };
+let pending = null;            // a project already opened from the search page, handed to the portal route
+let brandP = null, indexP = null;
+let onBrand = null;           // the search page re-draws its contact card when the company profile arrives
+
+function pagesRepo() {
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/i);
+  if (!m) return null;
+  const seg = location.pathname.split('/').filter(Boolean)[0];
+  return { user: m[1], repo: seg && !/\.html?$/i.test(seg) ? seg : m[1] + '.github.io' };
+}
+async function rawJson(where, path) {                       // the query string sidesteps the ~5 minute raw CDN cache
+  let res;
+  try { res = await fetch(rawUrl(where, path) + '?t=' + Date.now(), { cache: 'no-store' }); } catch (_) { throw new Error(t('cl.network')); }
+  if (res.status === 404) { const e = new Error(t('cl.notFound')); e.status = 404; throw e; }
+  if (!res.ok) throw new Error(t('cl.serverErr', { s: res.status }));
+  try { return await res.json(); } catch (_) { throw new Error(t('cl.badFormat')); }
+}
+async function fetchPayload(where, id) {
+  const j = await rawJson(where, 'data/clients/' + id + '.json');
+  if (!j || typeof j.payload !== 'string') throw new Error(t('cl.badFormat'));
+  return j.payload;
+}
+function loadBrand(where) {
+  return rawJson(where, 'data/public/brand.json').then((j) => { brand = sanitizeBrand(j); applyBrand(); document.title = brandName() + ' — ' + t('cl.docTitle'); if (onBrand) onBrand(); }, () => {});
+}
+const loadIndex = (where) => indexP || (indexP = rawJson(where, 'data/public/index.json').then((j) => (j && j.skus) || {}, (e) => { indexP = null; if (e.status === 404) return {}; throw e; }));
+
+/* ---- routing ---- */
+async function route(opts = {}) {
+  const token = ++routeToken, cm = location.hash.match(/^#client\/(.*)$/);
+  document.documentElement.classList.toggle('client-mode', !!cm);
+  syncTools(); applyStatic();
+  const where = pagesRepo();
+  if (where && !brandP) brandP = loadBrand(where);
+  document.title = brandName() + ' — ' + t('cl.docTitle');
+  if (cm) {
+    let id = ''; try { id = decodeURIComponent(cm[1]); } catch (_) { /* invalid */ }
+    if (opts.keep && cstate && cstate.id === id && cstate.redraw) return cstate.redraw();
+    stopLive(); cstate = { id, redraw: null };
+    return renderClient(id, token);
+  }
+  stopLive(); if (cstate) { cstate = null; clearImages(); }
+  return renderHome(token);
+}
+function stopLive() { if (cstate && cstate.stop) cstate.stop(); }
+const goHome = h('a', { class: 'btn', href: '#' }, '');
+const homeBtn = () => h('a', { class: 'btn primary', href: '#' }, icon('search'), t('cl.searchAgain'));
+
+/* ---- secret-key form, shared by the search page and the private link ---- */
+function keyForm(st, onSubmit, redraw) {
+  const key = h('input', { id: 'clKey', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'characters', dir: 'ltr', maxlength: 60, placeholder: 'XXXX-XXXX-XXXX-XXXX', 'aria-label': t('key.label') });
+  const show = h('button', { class: 'small', type: 'button', onclick: () => { key.type = key.type === 'password' ? 'text' : 'password'; show.textContent = key.type === 'password' ? t('act.show') : t('act.hide'); } }, t('act.show'));
+  const go = h('button', { class: 'btn primary', type: 'submit', id: 'btnOpen' }, icon('key'), st.busy ? t('key.opening') : t('key.open'));
+  go.disabled = !!st.busy;
+  const form = h('form', { class: 'keyform', autocomplete: 'off', onsubmit: async (e) => {
+    e.preventDefault(); if (st.busy || !key.value.trim()) { key.focus(); return; }
+    st.busy = true; st.err = false; go.disabled = true; go.lastChild.textContent = t('key.opening');
+    const ok = await onSubmit(key.value);
+    if (ok === false) { st.fails++; await sleep(Math.min(st.fails * 400, 2500)); st.busy = false; st.err = true; redraw(); }
+  } },
+  h('label', {}, t('key.label'), h('div', { class: 'input-row' }, key, show)),
+  st.err ? h('div', { class: 'msg bad shake', role: 'alert' }, h('strong', {}, t('cl.denied')), h('span', {}, t('cl.deniedText'))) : null,
+  go);
+  return form;
+}
+
+/* ---- home: live search ---- */
+const QID = /^[A-Z0-9]{1,6}-CL-\d{3,8}$/, QSKU = /^[A-Z0-9]{1,6}-[A-Z0-9]{2,5}-\d{4}-\d{3,6}$/;
+function parseQuery(q) {
+  let s = String(q || '').trim();
+  const m = s.match(/#client\/([A-Za-z0-9_-]+)/); if (m) s = m[1];
+  s = s.toUpperCase().replace(/\s+/g, '');
+  return QID.test(s) ? { kind: 'id', v: s } : QSKU.test(s) ? { kind: 'sku', v: s } : { kind: s.length >= 4 ? 'bad' : 'none', v: s };
+}
+async function liveFind(q, draw) {
+  const where = pagesRepo(), seq = (home.seq = (home.seq || 0) + 1), p = parseQuery(q);
+  Object.assign(home, { id: '', sku: '', cipher: null, err: false, fails: 0, busy: false });
+  if (!q.trim()) { home.st = 'idle'; return draw(); }
+  if (p.kind === 'none') { home.st = 'typing'; return draw(); }
+  if (p.kind === 'bad') { home.st = 'format'; return draw(); }
+  if (!where) { home.st = 'error'; return draw(); }
+  home.st = 'searching'; draw();
+  try {
+    let id = p.v;
+    if (p.kind === 'sku') { const idx = await loadIndex(where); id = idx[await skuKey(p.v)] || ''; home.sku = p.v; }
+    if (seq !== home.seq) return;
+    if (!id) { home.st = 'none'; return draw(); }
+    const cipher = await fetchPayload(where, id);
+    if (seq !== home.seq) return;
+    Object.assign(home, { st: 'found', id, cipher }); draw();
+  } catch (e) {
+    if (seq !== home.seq) return;
+    home.st = e.status === 404 ? 'none' : 'error'; home.msg = e.message; draw();
+  }
+}
+
+function contactButtons(cls) {
+  const b = brand, out = [];
+  if (b.whatsapp) out.push(h('a', { class: 'btn ' + (cls || ''), href: waLink(b.whatsapp), target: '_blank', rel: 'noopener noreferrer' }, icon('chat'), t('cl.whatsapp')));
+  if (b.phone) out.push(h('a', { class: 'btn ' + (cls || ''), href: telLink(b.phone) }, icon('phone'), t('cl.call')));
+  if (b.email) out.push(h('a', { class: 'btn ' + (cls || ''), href: mailLink(b.email, brandName(), '') }, icon('mail'), t('cl.email')));
+  return out;
+}
+
+function homeResult(draw) {
+  const st = home.st;
+  if (st === 'idle' || st === 'typing') return h('p', { class: 'muted small center' }, t('home.hint'));
+  if (st === 'format') return h('p', { class: 'muted small center' }, t('home.format'));
+  if (st === 'searching') return h('div', { class: 'result center' }, h('div', { class: 'spin', role: 'progressbar', 'aria-label': t('home.searching') }), h('span', { class: 'muted' }, t('home.searching')));
+  if (st === 'none') return h('div', { class: 'result bad-soft' }, h('strong', {}, t('home.none')), h('p', { class: 'muted small' }, t('home.noneText', { q: home.q.trim() })), contactButtons('small').length ? h('div', { class: 'actions' }, contactButtons('small')) : null);
+  if (st === 'error') return h('div', { class: 'result bad-soft' }, h('strong', {}, t('home.error')), home.msg ? h('p', { class: 'muted small' }, home.msg) : null,
+    h('div', { class: 'actions' }, h('button', { class: 'btn small', type: 'button', onclick: () => liveFind(home.q, draw) }, t('act.retry'))));
+  // found
+  const open = async (key) => {
+    const rec = await decryptRecord(home.cipher, key, home.id);
+    if (!rec) return false;
+    pending = { id: home.id, cipher: home.cipher, rec, secret: normSecret(key) };
+    location.hash = '#client/' + home.id; return true;
+  };
+  return h('div', { class: 'result found' },
+    h('div', { class: 'found-head' }, h('span', { class: 'okdot' }, icon('check')), h('div', {}, h('strong', {}, t('home.found')), h('div', { class: 'muted small' }, home.sku ? t('home.foundSku', { sku: home.sku, id: home.id }) : t('home.foundId', { id: home.id })))),
+    keyForm(home, open, draw));
+}
+
+function renderHome(token) {
+  const q = h('input', { id: 'clQ', type: 'search', class: 'bigsearch', placeholder: t('home.ph'), 'aria-label': t('home.label'), autocomplete: 'off', spellcheck: 'false', autocapitalize: 'characters', dir: 'ltr', value: home.q });
+  const out = h('div', { class: 'live-out', 'aria-live': 'polite' });
+  const draw = () => { if (token === routeToken) out.replaceChildren(homeResult(draw)); };
+  let timer = 0;
+  q.addEventListener('input', () => { home.q = q.value; clearTimeout(timer); home.st = q.value.trim() ? 'typing' : 'idle'; draw(); timer = setTimeout(() => liveFind(q.value, draw), 320); });
+  const steps = [['search', 'home.s1', 'home.s1d'], ['key', 'home.s2', 'home.s2d'], ['refresh', 'home.s3', 'home.s3d']];
+  const slot = h('div', { class: 'contact-slot' });
+  const fillContact = () => {
+    const contacts = contactButtons();
+    slot.replaceChildren(...(contacts.length ? [h('section', { class: 'card contact' }, h('div', {}, h('strong', {}, t('cl.help')), h('div', { class: 'muted small' }, brand.address || brandName())), h('div', { class: 'actions' }, contacts))] : []));
+  };
+  fillContact();
+  onBrand = () => { if (token !== routeToken) return; fillContact(); if (home.st === 'none') draw(); };
+  mount(h('div', { class: 'stack home' },
+    h('section', { class: 'card homehero' },
+      h('p', { class: 'eyebrow' }, t('home.eyebrow')),
+      h('h1', {}, t('home.title')),
+      h('p', { class: 'muted lead' }, t('home.sub')),
+      h('div', { class: 'searchbox' }, h('span', { class: 'si' }, icon('search')), q),
+      out),
+    h('section', { class: 'stack-sm' }, h('h2', {}, t('home.how')),
+      h('div', { class: 'steps' }, steps.map((s, i) => h('div', { class: 'step-card' }, h('span', { class: 'sn' }, nf(i + 1)), h('strong', {}, t(s[1])), h('span', { class: 'muted small' }, t(s[2])))))),
+    slot,
+    h('p', { class: 'muted small center secure-note' }, icon('shield'), t('home.secure'))));
+  if (home.st !== 'idle') { out.replaceChildren(homeResult(draw)); if (home.st === 'typing' && home.q.trim()) liveFind(home.q, draw); }
+  else draw();
+  q.focus({ preventScroll: true });
+}
+
+/* ---- project link / portal ---- */
+// Every screen is a builder, so switching language can redraw it without asking for the key again.
+const showC = (build) => { if (!cstate) return; cstate.redraw = () => mount(...[].concat(build())); cstate.redraw(); };
+
+async function renderClient(id, token) {
+  const alive = () => token === routeToken && cstate && cstate.id === id;
+  if (!ID_RE.test(id)) return showC(() => [notice(t('cl.badLinkTitle'), t('cl.badLinkText'), 'bad', { actions: [homeBtn()] })]);
+  const where = pagesRepo();
+  if (!where) return showC(() => notice(t('cl.noRepoTitle'), t('cl.noRepoText'), 'bad'));
+  if (pending && pending.id === id) { const p = pending; pending = null; return openPortal(p.rec, p.secret, p.cipher, where); }
+
+  showC(() => notice(t('act.loading'), t('cl.loadingText'), 'info', { spinner: true }));
+  let cipher;
+  try { cipher = await fetchPayload(where, id); } catch (e) {
+    if (!alive()) return;
+    return showC(() => notice(t('cl.loadFail'), e.message, 'bad', { actions: [h('button', { class: 'btn primary', type: 'button', onclick: () => route() }, t('act.retry')), h('a', { class: 'btn', href: '#' }, t('cl.searchAgain'))] }));
+  }
+  if (!alive()) return;
+  if (brandP) await brandP;
+  const st = { fails: 0, err: false, busy: false };
+  const submit = async (key) => {
+    const rec = await decryptRecord(cipher, key, id);
+    if (!alive()) return true;
+    if (!rec) return false;
+    openPortal(rec, normSecret(key), cipher, where); return true;
+  };
+  showC(() => h('div', { class: 'stack' }, h('section', { class: 'card gate-client' },
+    h('div', { class: 'gate-icon' }, icon('lock')), h('p', { class: 'eyebrow' }, t('cl.passTitle')), h('h1', {}, t('cl.passHead')),
+    h('p', { class: 'muted' }, t('cl.passText2')), h('span', { class: 'chip mono' }, id),
+    keyForm(st, submit, () => cstate && cstate.redraw && cstate.redraw())),
+  h('p', { class: 'center' }, h('a', { href: '#' }, t('cl.searchAgain')))));
+}
+
+function openPortal(rec, secret, cipher, where) {
+  if (!cstate) return;
+  Object.assign(cstate, { pub: upgradePublic(rec), secret, cipher, where, pi: 0, checked: new Date() });
+  CUR = cstate.pub.currency || 'EGP';
+  const c = cstate;
+  c.timer = setInterval(() => { if (document.visibilityState === 'visible') checkUpdate(false); }, 60000);
+  c.onVis = () => { if (document.visibilityState === 'visible' && Date.now() - c.checked > 30000) checkUpdate(false); };
+  document.addEventListener('visibilitychange', c.onVis);
+  c.stop = () => { clearInterval(c.timer); document.removeEventListener('visibilitychange', c.onVis); c.stop = null; };
+  showC(clientNodes);
+}
+async function checkUpdate(manual) {
+  const c = cstate; if (!c || !c.pub || c.checking) return;
+  if (!manual && document.querySelector('dialog[open], #rateBox textarea:focus')) return;
+  c.checking = true;
+  try {
+    const cipher = await fetchPayload(c.where, c.id);
+    if (cstate !== c) return;
+    c.checked = new Date();
+    if (cipher !== c.cipher) {
+      const rec = await decryptRecord(cipher, c.secret, c.id);
+      if (cstate !== c) return;
+      if (rec) {
+        const fresh = upgradePublic(rec), changed = fresh.updatedAt !== c.pub.updatedAt;
+        c.cipher = cipher; c.pub = fresh;
+        if (changed) toast(t('cl.changed'), 'ok');
+        c.redraw(); return;
+      }
+    }
+    const s = $('#liveStamp'); if (s) s.textContent = t('cl.checked', { t: fmtTime(c.checked) });
+    if (manual) toast(t('cl.upToDate'), 'ok');
+  } catch (e) { if (manual) toast(e.message, 'bad'); } finally { c.checking = false; }
+}
+const fmtTime = (d) => d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
+
+const metaItem = (k, v, cls) => h('div', {}, h('dt', {}, k), h('dd', { class: cls }, v));
+
+function ring(frac) {
+  const r = 34, C = 2 * Math.PI * r, f = Math.max(0, Math.min(1, frac || 0));
+  const box = h('div', { class: 'ring', role: 'img', 'aria-label': t('cl.progress') + ' ' + pct(f) });
+  box.innerHTML = '<svg viewBox="0 0 84 84" width="84" height="84" aria-hidden="true"><circle class="rb" cx="42" cy="42" r="34"/><circle class="rf" cx="42" cy="42" r="34" stroke-dasharray="' + (C * f).toFixed(1) + ' ' + C.toFixed(1) + '" transform="rotate(-90 42 42)"/></svg>';
+  box.append(h('span', {}, pct(f)));
+  return box;
+}
+
+function clientNodes() {
+  const c = cstate, pub = c.pub, list = pub.projects || [];
+  if (c.pi >= list.length) c.pi = 0;
+  const switcher = list.length > 1 ? h('div', { class: 'pcards', role: 'group', 'aria-label': t('cl.projects') }, list.map((p, i) => h('button', {
+    class: 'btn pcard', type: 'button', 'aria-pressed': String(i === c.pi), onclick: () => { c.pi = i; c.redraw(); },
+  }, h('span', { class: 'mono small' }, p.sku), h('strong', { dir: 'auto' }, p.title || L(p.typeName) || p.sku),
+  h('span', { class: 'chips' }, statusBadge(projState(p)), timeBadge(p.dueDate, projState(p) === 'completed'))))) : null;
+  const contacts = contactButtons('small');
+  return h('div', { class: 'stack' },
+    h('section', { class: 'card hero' },
+      h('div', { class: 'hero-top' }, h('div', {}, h('p', { class: 'eyebrow' }, t('cl.yourProject')), h('h1', { dir: 'auto' }, t('cl.hello', { name: pub.name }))),
+        h('div', { class: 'livebox' }, h('span', { class: 'live' }, h('i', { class: 'dot' }), t('cl.live')), h('span', { class: 'muted small', id: 'liveStamp' }, t('cl.checked', { t: fmtTime(c.checked) })),
+          h('button', { class: 'small', type: 'button', id: 'btnLiveRefresh', 'aria-label': t('act.refresh'), onclick: () => checkUpdate(true) }, icon('refresh'), t('act.refresh')))),
+      h('dl', { class: 'meta' }, metaItem(t('cl.clientId'), pub.id, 'mono'), metaItem(t('cl.updated'), fmtDateTime(pub.updatedAt)), list.length > 1 ? metaItem(t('cl.projects'), nf(list.length)) : null),
+      switcher),
+    ...(list.length ? projectNodes(list[c.pi], { cid: pub.id, secret: c.secret, where: c.where }) : [h('p', { class: 'card empty' }, t('cl.noProjects'))]),
+    contacts.length ? h('section', { class: 'card contact' }, h('div', {}, h('strong', {}, t('cl.help')), h('div', { class: 'muted small' }, brandName())), h('div', { class: 'actions' }, contacts)) : null,
+    h('div', { class: 'foot' }, h('p', { class: 'muted small' }, t('cl.footnote')),
+      h('button', { class: 'btn ghost', type: 'button', id: 'btnClientLock', onclick: () => { cstate && cstate.stop && cstate.stop(); location.hash = '#'; } }, t('cl.lock'))));
+}
+
+function tapeCard(p) {
+  const done = projState(p) === 'completed', n = daysUntil(p.dueDate), a = parseDay(p.startDate), b = parseDay(p.dueDate);
+  const frac = a && b && b > a ? Math.max(0, Math.min(1, (new Date() - a) / (b - a))) : null;
+  const cls = done ? 'done' : n !== null && n < 0 ? 'late' : '';
+  const x = frac === null ? 0 : Math.round(frac * 1000) / 10;
+  return h('section', { class: 'card tape-wrap', id: 'tapeCard' },
+    h('div', { class: 'tape-head' },
+      h('div', {}, h('div', { class: 'small muted' }, t('cl.timeLeft')), h('div', { class: 'tape-big', id: 'tapeBig' }, done ? t('time.done') : n === null ? t('time.noDate') : timeLeft(n))),
+      frac !== null && !done ? h('span', { class: 'small muted' }, t('cl.timeUsed', { p: nf(Math.round(frac * 100)) })) : null),
+    frac !== null ? h('div', { class: 'tape ' + cls, role: 'img', 'aria-label': t('cl.timeLeft') },
+      h('div', { class: 'tape-used', style: 'width:' + x + '%' }), h('div', { class: 'tape-now', style: 'inset-inline-start:' + x + '%' })) : null,
+    h('div', { class: 'tape-ends' }, h('span', {}, t('cl.start') + ': ' + fmtDay(p.startDate)), h('span', {}, t('cl.due') + ': ' + fmtDay(p.dueDate))));
+}
+
+function moneyCard(p) {
+  const f = finance(p), pays = (p.payments || []).slice().sort((x, y) => String(x.date).localeCompare(String(y.date)));
+  if (!f.price && !pays.length) return null;
+  return h('section', { class: 'card stack-sm', id: 'moneyCard' },
+    h('h2', {}, t('cl.money')),
+    kpis(kpi(t('fin.price'), money(f.price)), kpi(t('fin.paid'), money(f.paid), 'pos', pct(f.collected)), kpi(t('fin.remaining'), money(f.remaining), f.remaining > 0 ? 'warn' : 'pos')),
+    barFill(f.collected, 'ok'),
+    pays.length ? h('div', {}, pays.map((x) => h('div', { class: 'pay' },
+      h('div', { class: 'who' }, h('strong', {}, fmtDay(x.date)), x.note ? h('span', { class: 'muted small', dir: 'auto' }, x.note) : null),
+      h('span', { class: 'amt' }, money(x.amount))))) : h('p', { class: 'muted small' }, t('cl.noPayments')));
+}
+
+function stageCard(st, idx) {
+  const items = st.checklist || [], n = items.filter((i) => i.done).length, info = statusInfo(st.status);
+  return h('article', { class: 'stage ' + info[2] },
+    h('header', {}, h('span', { class: 'step' }, st.status === 'completed' ? icon('check') : String(idx + 1)), h('h3', { dir: 'auto' }, L(st.name)), h('span', { class: 'badge ' + info[2] }, t(info[1]))),
+    h('p', { class: 'muted small' }, t('cl.tasksDone', { a: nf(n), b: nf(items.length) })),
+    h('ul', { class: 'checks' }, items.map((i) => h('li', { class: i.done ? 'done' : '' }, icon(i.done ? 'check' : 'circle'), h('span', { dir: 'auto' }, L(i.text)),
+      h('span', { class: 'sr' }, i.done ? ' (' + t('ed.done') + ')' : '')))));
+}
+
+/* ---- rating after completion ---- */
+const fbKey = (cid, sku) => 'dsp.fb.' + cid + '.' + sku;
+function ratingCard(p, ctx) {
+  if (projState(p) !== 'completed' || brand.rating === false) return null;
+  const fb = p.feedback;
+  if (fb) {
+    return h('section', { class: 'card rate done-rate', id: 'rateBox' },
+      h('div', { class: 'rate-head' }, h('span', { class: 'okdot' }, icon('star')), h('div', {}, h('h2', {}, t('rate.thanks')), h('p', { class: 'muted small' }, t('rate.yours')))),
+      h('div', { class: 'score-big' }, h('strong', {}, nf(fb.score)), h('span', { class: 'muted' }, '/ ' + nf(10))),
+      h('div', { class: 'scorebar', role: 'img', 'aria-label': t('rate.score', { n: nf(fb.score) }) }, Array.from({ length: 10 }, (_, i) => h('i', { class: i < fb.score ? 'on' : '' }))),
+      fb.comment ? h('blockquote', { dir: 'auto' }, fb.comment) : null);
+  }
+  let saved = null; try { saved = JSON.parse(ls.get(fbKey(ctx.cid, p.sku)) || 'null'); } catch (_) { saved = null; }
+  const st = { score: saved ? saved.score : 0, comment: saved ? saved.comment : '', code: saved ? saved.code : '', err: '' };
+  const box = h('section', { class: 'card rate', id: 'rateBox' });
+  const draw = () => box.replaceChildren(...(st.code ? sendPanel() : formPanel()));
+  const message = () => t('rate.msgIntro', { b: brandName(), sku: p.sku, n: nf(st.score) }) + '\n\n' + st.code;
+  function sendPanel() {
+    const out = [h('div', { class: 'rate-head' }, h('span', { class: 'okdot' }, icon('check')), h('div', {}, h('h2', {}, t('rate.sendTitle')), h('p', { class: 'muted small' }, t('rate.sendText')))),
+      h('div', { class: 'score-big' }, h('strong', {}, nf(st.score)), h('span', { class: 'muted' }, '/ ' + nf(10)))];
+    const acts = [];
+    if (brand.whatsapp) acts.push(h('a', { class: 'btn primary', id: 'btnRateWa', href: waLink(brand.whatsapp, message()), target: '_blank', rel: 'noopener noreferrer' }, icon('chat'), t('cl.whatsapp')));
+    if (brand.email) acts.push(h('a', { class: 'btn', id: 'btnRateMail', href: mailLink(brand.email, t('rate.mailSubject', { sku: p.sku }), message()) }, icon('mail'), t('cl.email')));
+    const copy = h('button', { class: 'btn', type: 'button', id: 'btnRateCopy' }, icon('key'), t('rate.copy'));
+    copy.onclick = async () => { const ok = await copyText(message()); toast(ok ? t('act.copied') : t('act.copyFail'), ok ? 'ok' : 'bad'); };
+    acts.push(copy);
+    out.push(h('div', { class: 'actions' }, acts));
+    if (!brand.whatsapp && !brand.email) out.push(h('p', { class: 'muted small' }, t('rate.noContact')));
+    out.push(h('p', { class: 'muted small' }, t('rate.privacy', { b: brandName() })));
+    out.push(h('div', { class: 'actions' }, h('button', { class: 'small ghost', type: 'button', id: 'btnRateEdit', onclick: () => { st.code = ''; ls.set(fbKey(ctx.cid, p.sku), JSON.stringify({ score: st.score, comment: st.comment, code: '' })); draw(); } }, t('rate.change'))));
+    return out;
+  }
+  function formPanel() {
+    const scale = h('div', { class: 'scale', role: 'radiogroup', 'aria-label': t('rate.title') }, Array.from({ length: 10 }, (_, i) => {
+      const n = i + 1;
+      return h('button', { type: 'button', role: 'radio', 'aria-checked': String(st.score === n), class: 'sc' + (st.score === n ? ' on' : ''), 'data-n': String(n), onclick: () => { st.score = n; st.err = ''; draw(); } }, nf(n));
+    }));
+    const ta = h('textarea', { id: 'rateComment', rows: 3, maxlength: 600, dir: 'auto', placeholder: t('rate.commentPh'), 'aria-label': t('rate.comment') });
+    ta.value = st.comment; ta.addEventListener('input', () => { st.comment = ta.value; });
+    const err = st.err ? h('p', { class: 'msg bad', role: 'alert' }, st.err) : null;
+    const go = h('button', { class: 'btn primary', type: 'button', id: 'btnRateGo', onclick: async () => {
+      if (!st.score) { st.err = t('rate.needScore'); return draw(); }
+      go.disabled = true;
+      try {
+        st.code = await makeFeedbackCode({ sku: p.sku, score: st.score, comment: st.comment.trim().slice(0, 600) }, ctx.secret, ctx.cid);
+        ls.set(fbKey(ctx.cid, p.sku), JSON.stringify({ score: st.score, comment: st.comment.trim(), code: st.code }));
+      } catch (e) { st.err = e.message; }
+      draw();
+    } }, icon('star'), t('rate.submit'));
+    return [h('div', { class: 'rate-head' }, h('span', { class: 'okdot' }, icon('star')), h('div', {}, h('h2', {}, t('rate.title')), h('p', { class: 'muted small' }, t('rate.sub')))),
+      scale, h('div', { class: 'scale-ends muted small' }, h('span', {}, t('rate.low')), h('span', {}, t('rate.high'))),
+      h('label', {}, t('rate.comment'), ta), err, go];
+  }
+  draw();
+  return box;
+}
+
+function projectNodes(p, ctx) {
+  const prog = progress(p), photos = (p.photos || []).slice().reverse(), parts = p.parts || [];
+  const nodes = [
+    h('section', { class: 'card stack-sm' },
+      h('div', { class: 'proj-top' },
+        h('div', { class: 'titleblock' }, h('h2', { dir: 'auto' }, p.title || p.sku),
+          h('div', { class: 'chips' }, h('span', { class: 'chip mono' }, p.sku), L(p.typeName) ? h('span', { class: 'chip' }, L(p.typeName)) : null, statusBadge(projState(p)))),
+        ring(prog)),
+      p.description ? h('p', { class: 'desc', dir: 'auto' }, p.description) : null,
+      h('div', { class: 'rowsep' }, h('span', { class: 'small muted' }, t('cl.progress')), h('strong', {}, pct(prog))), barFill(prog)),
+    tapeCard(p), moneyCard(p),
+  ];
+  if ((p.stages || []).length) nodes.push(h('section', { class: 'stack-sm' }, h('h2', {}, t('cl.stages')), h('div', { class: 'stages' }, p.stages.map(stageCard))));
+  if (parts.length) {
+    const done = parts.filter((x) => x.status === 'completed').length;
+    nodes.push(h('section', { class: 'card stack-sm', id: 'partsCard' }, h('div', { class: 'card-head' }, h('h2', {}, t('cl.parts')), h('span', { class: 'small muted' }, t('ed.partsSummary', { a: nf(done), b: nf(parts.length) }))),
+      h('div', { class: 'parts' }, parts.map((x) => h('div', { class: 'part' },
+        h('span', { class: 'nm', dir: 'auto' }, x.name, x.qty > 1 ? h('span', { class: 'muted' }, ' × ' + nf(x.qty)) : null), statusBadge(x.status),
+        h('span', { class: 'when' }, x.status === 'completed' ? null : timeBadge(x.dueDate, false)))))));
+  }
+  if (photos.length) {
+    nodes.push(h('section', { class: 'card stack-sm', id: 'photosCard' }, h('h2', {}, t('cl.photos')),
+      h('div', { class: 'photos' }, photos.map((ph, i) => h('div', { class: 'ph' },
+        h('button', { class: 'imgbtn', type: 'button', 'aria-label': t('ph.view'), onclick: () => openLightbox(ctx, photos, i) }, photoImg(ctx, ph, 't')),
+        h('div', { class: 'cap', dir: 'auto' }, ph.caption || '', ph.date ? h('small', {}, fmtDay(ph.date)) : null))))));
+  }
+  const rate = ratingCard(p, ctx); if (rate) nodes.push(rate);
+  return nodes;
+}
+/* =====================================================================
+   Boot
+   ===================================================================== */
+function fatal(title, text) { mount(notice(title, text, 'bad')); }
+
+async function boot() {
+  if (window.__dsp) window.__dsp.booted = true;          // the script is alive (stops the start-up safety net)
+  hydrate(document.querySelector('header'));
+  applyBrand(); applyStatic(); syncTools();
+  $('#btnLang').onclick = () => setLang(lang === 'ar' ? 'en' : 'ar');
+  $('#btnTheme').onclick = () => setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  if (!window.CryptoJS && window.__dsp && window.__dsp.crypto) {
+    mount(notice(t('boot.loadingLib'), t('boot.loadingLibText'), '', { spinner: true }));
+    await window.__dsp.crypto;
+  }
+  if (!window.CryptoJS) return fatal(t('boot.noLib'), t('boot.noLibText'));
+  if (!(window.crypto && crypto.subtle)) return fatal(t('boot.noSecure'), t('boot.noSecureText'));
+  addEventListener('hashchange', () => route());
+  route();
+}
+boot().catch((e) => { try { fatal('Error', String((e && e.message) || e)); } catch (_) { /* the start-up safety net shows the details */ } });
+})();
+</script>
+</body>
+</html>
