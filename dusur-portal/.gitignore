@@ -1,0 +1,7 @@
+# test output and local tooling
+tests/.out/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+.DS_Store

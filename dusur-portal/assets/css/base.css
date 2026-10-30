@@ -1,0 +1,56 @@
+/* assets/css/base.css  -  design tokens (dark and light themes), reset, typography, top bar, page layout.
+   Loaded by both pages. All colours are CSS variables so the two themes differ only in this file. */
+
+:root,[data-theme=dark]{
+  --bg:#0f172a;--bg-2:#0b1224;--card:#1e293b;--card-2:#17233a;--line:#334155;--line-2:#475569;
+  --text:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8;--accent-2:#2563eb;
+  --ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--input:#0f172a;--glow:#1b2a4e;
+  --shadow:0 10px 30px rgba(2,6,23,.35);--radius:14px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+[data-theme=light]{
+  --bg:#f1f5f9;--bg-2:#e2e8f0;--card:#ffffff;--card-2:#f8fafc;--line:#cbd5e1;--line-2:#94a3b8;
+  --text:#0f172a;--muted:#475569;--accent:#0369a1;--accent-2:#2563eb;
+  --ok:#166534;--warn:#92400e;--bad:#b91c1c;--input:#ffffff;--glow:#dbeafe;
+  --shadow:0 6px 20px rgba(15,23,42,.08);
+}
+/* Fonts: IBM Plex Sans for English, IBM Plex Sans Arabic for Arabic (each also carries the other script's fallback). Loaded by assets/js/guard.js. */
+:root{--font:"IBM Plex Sans","IBM Plex Sans Arabic",system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Arabic","Noto Naskh Arabic",Tahoma,sans-serif}
+html[lang=ar]{--font:"IBM Plex Sans Arabic","IBM Plex Sans",system-ui,-apple-system,"Segoe UI","Noto Sans Arabic","Noto Naskh Arabic",Tahoma,Roboto,sans-serif}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{color-scheme:dark}
+html[data-theme=light]{color-scheme:light}
+body{margin:0;min-height:100vh;color:var(--text);
+  font:15px/1.6 var(--font);
+  background:radial-gradient(1100px 520px at 85% -10%,var(--glow) 0%,transparent 62%),var(--bg)}
+h1,h2,h3{margin:0;line-height:1.3}
+h1{font-size:clamp(22px,3vw,30px)} h2{font-size:18px} h3{font-size:16px}
+p{margin:0}
+a{color:var(--accent)}
+code,.mono{font-family:var(--mono)}
+.mono,.ltr{direction:ltr;unicode-bidi:isolate;display:inline-block}
+.muted{color:var(--muted)} .small{font-size:13px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* top bar */
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:10px clamp(16px,4vw,32px);background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700}
+.logo{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:#06142e;background:linear-gradient(135deg,#38bdf8,#2563eb)}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+/* phones: the bar scrolls away with the page, so it does not take a third of the screen */
+@media (max-width:700px){.topbar{position:static;padding:8px 14px;gap:6px 10px}}
+.client-only{display:none}
+html.client-mode .client-only{display:inline-flex}
+html.client-mode .admin-only{display:none!important}
+.secure-banner{align-items:center;gap:8px;padding:6px 12px;border-radius:99px;font-size:13px;font-weight:700;color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
+
+main{max-width:1120px;margin:0 auto;padding:clamp(16px,3vw,32px);display:block}
+.stack{display:grid;gap:20px} .stack-sm{display:grid;gap:12px}
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.layout{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
+.back{display:inline-block;margin-bottom:6px;color:var(--muted);text-decoration:none;font-weight:600}
+.back:hover{color:var(--text)}

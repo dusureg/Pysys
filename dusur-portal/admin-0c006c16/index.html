@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<!--
+  DUSUR - ADMIN site (private). KEEP THE ADDRESS OF THIS FOLDER PRIVATE: the random part of its name is the only thing hiding it.
+  Nothing links here, search engines are told to skip it, and anyone who finds it still faces the admin password.
+  Set-up: README.md. Rename the folder to change the address. Structure: docs/ARCHITECTURE.md.
+-->
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://script.google.com https://script.googleusercontent.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark light">
+<title>DUSUR - Admin</title>
+<link rel="icon" href="data:,">
+<script src="../assets/js/guard.js"></script>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+<link rel="stylesheet" href="css/admin.css">
+<link rel="stylesheet" href="css/report.css">
+<script defer src="../assets/i18n/en.js"></script>
+<script defer src="../assets/i18n/ar.js"></script>
+<script defer src="i18n/en.js"></script>
+<script defer src="i18n/ar.js"></script>
+<script defer src="../assets/js/core/constants.js"></script>
+<script defer src="../assets/js/core/i18n.js"></script>
+<script defer src="../assets/js/core/dom.js"></script>
+<script defer src="../assets/js/core/crypto.js"></script>
+<script defer src="../assets/js/core/look.js"></script>
+<script defer src="../assets/js/core/brand.js"></script>
+<script defer src="../assets/js/core/domain.js"></script>
+<script defer src="../assets/js/core/ui.js"></script>
+<script defer src="../assets/js/core/photos.js"></script>
+<script defer src="js/state.js"></script>
+<script defer src="js/crypto.js"></script>
+<script defer src="js/session.js"></script>
+<script defer src="js/github.js"></script>
+<script defer src="js/domain.js"></script>
+<script defer src="js/contract-terms.js"></script>
+<script defer src="js/label.js"></script>
+<script defer src="js/attach.js"></script>
+<script defer src="js/store.js"></script>
+<script defer src="js/ops-data.js"></script>
+<script defer src="js/codes.js"></script>
+<script defer src="js/cost-cats.js"></script>
+<script defer src="js/perm.js"></script>
+<script defer src="js/team-data.js"></script>
+<script defer src="js/profile.js"></script>
+<script defer src="js/paper-size.js"></script>
+<script defer src="js/import-file.js"></script>
+<script defer src="js/audit.js"></script>
+<script defer src="js/fin-data.js"></script>
+<script defer src="js/ui.js"></script>
+<script defer src="js/share.js"></script>
+<script defer src="js/views/shell.js"></script>
+<script defer src="js/views/stage-editor.js"></script>
+<script defer src="js/views/gate.js"></script>
+<script defer src="js/views/config.js"></script>
+<script defer src="js/views/settings-contract.js"></script>
+<script defer src="js/views/settings-more.js"></script>
+<script defer src="js/views/settings.js"></script>
+<script defer src="js/views/dashboard.js"></script>
+<script defer src="js/views/editor.js"></script>
+<script defer src="js/views/editor-tabs.js"></script>
+<script defer src="js/views/schedule.js"></script>
+<script defer src="js/views/editor-save.js"></script>
+<script defer src="js/views/progress.js"></script>
+<script defer src="js/views/contract.js"></script>
+<script defer src="js/views/bom.js"></script>
+<script defer src="js/views/feedback.js"></script>
+<script defer src="js/views/ops-ui.js"></script>
+<script defer src="js/views/attach-ui.js"></script>
+<script defer src="js/views/suppliers.js"></script>
+<script defer src="js/views/inventory.js"></script>
+<script defer src="js/views/logistics.js"></script>
+<script defer src="js/views/finance.js"></script>
+<script defer src="js/views/collections.js"></script>
+<script defer src="js/views/contracting.js"></script>
+<script defer src="js/views/labels.js"></script>
+<script defer src="js/views/import.js"></script>
+<script defer src="js/views/audit.js"></script>
+<script defer src="js/views/doctor.js"></script>
+<script defer src="js/views/team.js"></script>
+<script defer src="js/views/reports/model.js"></script>
+<script defer src="js/views/reports/model-ops.js"></script>
+<script defer src="js/views/reports/model-fin.js"></script>
+<script defer src="js/views/reports/model-coll.js"></script>
+<script defer src="js/views/reports/model-ctr.js"></script>
+<script defer src="js/views/reports/model-ovw.js"></script>
+<script defer src="js/views/reports/charts.js"></script>
+<script defer src="js/views/reports/paper.js"></script>
+<script defer src="js/views/reports/screen.js"></script>
+<script defer src="js/export/zip-xml.js"></script>
+<script defer src="js/export/xlsx-drawing.js"></script>
+<script defer src="js/export/xlsx.js"></script>
+<script defer src="js/export/dom-image.js"></script>
+<script defer src="js/router.js"></script>
+<script defer src="js/main.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <button type="button" id="btnMenu" class="small menu-btn" aria-expanded="false" aria-controls="adminNav" hidden></button>
+  <a class="brand" href="#dashboard" aria-label="DUSUR"><span class="brandmark" id="brandMark"></span><span class="brand-name" id="brandName">DUSUR</span><span class="brand-sub" data-i18n="app.adminTag">Admin</span></a>
+  <span id="auditPill" class="pill warnpill" role="status" hidden></span>
+  <div class="tools">
+    <button type="button" id="btnLang" class="small"></button>
+    <button type="button" id="btnTheme" class="small"></button>
+  </div>
+</header>
+
+<div class="shell">
+<nav id="adminNav" class="side admin-only" aria-label="Admin" hidden>
+  <div class="navuser" id="navUser"></div>
+  <div id="navLinks" class="navlinks"></div>
+  <button type="button" id="btnLock" class="ghost navlock" data-i18n="nav.lock"></button>
+</nav>
+<div id="navScrim" class="scrim" hidden></div>
+<main id="app" tabindex="-1"><section class="card state"><div class="spin" role="progressbar" aria-label="Loading"></div><p class="muted">Loading… · جارٍ التحميل…</p><p class="muted small slowhint">Still blank? Scripts may be blocked here. Open this page in Chrome at its https:// GitHub Pages address (not inside a file viewer or preview). · لم تظهر شاشة؟ ربما تم حجب السكربتات هنا. افتح الصفحة من متصفح Chrome على عنوان https:// الخاص بـ GitHub Pages.</p></section></main>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+</div>
+<noscript><p style="padding:24px;text-align:center">JavaScript is required / يلزم تفعيل جافاسكربت</p></noscript>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<!--
+  DUSUR - CLIENT site (public entry point of the portal).
+  Clients open  https://<username>.github.io/<repo>/  to search for their project, or the private link copied from the admin dashboard
+  (.../#client/<id>). Everything is decrypted in the browser with the client's secret key.
+  This page and the files it loads contain no admin code, no token and no repository details: the repository is worked out from the page address.
+  Structure and set-up: see README.md and docs/ARCHITECTURE.md.
+-->
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://raw.githubusercontent.com https://script.google.com https://script.googleusercontent.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark light">
+<title>DUSUR - Client Portal</title>
+<link rel="icon" href="data:,">
+<meta name="dsp-early" content="data/public/brand.json">
+<link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>   <!-- the data files come from here: the connection is opened while the scripts download -->
+<script src="assets/js/guard.js"></script>
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/components.css">
+<link rel="stylesheet" href="assets/css/client.css">
+<script defer src="assets/i18n/en.js"></script>
+<script defer src="assets/i18n/ar.js"></script>
+<script defer src="assets/js/core/constants.js"></script>
+<script defer src="assets/js/core/i18n.js"></script>
+<script defer src="assets/js/core/dom.js"></script>
+<script defer src="assets/js/core/crypto.js"></script>
+<script defer src="assets/js/core/look.js"></script>
+<script defer src="assets/js/core/brand.js"></script>
+<script defer src="assets/js/core/domain.js"></script>
+<script defer src="assets/js/core/ui.js"></script>
+<script defer src="assets/js/core/photos.js"></script>
+<script defer src="assets/js/client/data.js"></script>
+<script defer src="assets/js/client/router.js"></script>
+<script defer src="assets/js/client/keyform.js"></script>
+<script defer src="assets/js/client/search.js"></script>
+<script defer src="assets/js/client/portal.js"></script>
+<script defer src="assets/js/client/rating.js"></script>
+<script defer src="assets/js/client/main.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="#" aria-label="DUSUR"><span class="brandmark" id="brandMark"></span><span class="brand-name" id="brandName">DUSUR</span></a>
+  <div class="tools">
+    <span class="secure-banner client-only" id="clientBanner"><span data-icon="lock"></span><span data-i18n="app.secureBanner"></span></span>
+    <button type="button" id="btnLang" class="small"></button>
+    <button type="button" id="btnTheme" class="small"></button>
+  </div>
+</header>
+
+<main id="app" tabindex="-1"><section class="card state"><div class="spin" role="progressbar" aria-label="Loading"></div><p class="muted">Loading… · جارٍ التحميل…</p><p class="muted small slowhint">Still blank? Scripts may be blocked here. Open this page in Chrome at its https:// GitHub Pages address (not inside a file viewer or preview). · لم تظهر شاشة؟ ربما تم حجب السكربتات هنا. افتح الصفحة من متصفح Chrome على عنوان https:// الخاص بـ GitHub Pages.</p></section></main>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px;text-align:center">JavaScript is required / يلزم تفعيل جافاسكربت</p></noscript>
+</body>
+</html>
